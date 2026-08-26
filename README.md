@@ -26,7 +26,7 @@ From the project folder you'll actually work in (the folder open on your VS Code
 
 ```bash
 mkdir -p .claude/skills
-git clone <git clone URL of this repo> .claude/skills/hfc-agent-skill
+git clone git@github.com:AigleBlanc/hfc-agent-skill.git .claude/skills/hfc-agent-skill
 ```
 
 **Open your project folder** (the one containing `.claude/`) in VS Code with Claude Code. Turn on Claude Code's built-in **Auto** permission mode (`/permissions`, or the mode toggle) so the agent doesn't interrupt you for routine file reads/writes and `Rscript` calls — it's a setting you control yourself, not something this skill changes for you.
@@ -167,7 +167,9 @@ Fixed data always lands at `<HFC Output Directory>/Updated Data/<stem>.<ext>` (o
 An AI skill is not a fixed instruction file, what you tell the agent in your Claude Code chat will modify what this skill does. So if you have suggestions related to your specific
 project/needs, like additional checks or how to report some issues, tell the AI agent and it will adjust to your instructions. This skill is a starting point, tell the AI agent what to change! 
 
+It is also adviced to turn your Claude Code interaction mode to "Auto" so that the agent does not request your permissions to run R scripts and file reading/writing a thousand times.
 
-## A note on privacy
+
+## A note on privacy 
 
 Don't paste respondent-level data into commercial AI chat tools. See [`references/ai_use.md`](references/ai_use.md) for details.
