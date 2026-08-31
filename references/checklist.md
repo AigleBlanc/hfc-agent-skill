@@ -9,7 +9,7 @@ Use after Pipeline A (setup) and again after Pipeline B (post-feedback).
 | Microdata in the configured Input Data Directory (immutable) | yes |
 | Instrument / form (also in the Input Data Directory) | optional (preferred for M9 / M3 / nested skip-logic) |
 | Project description / Pre-Analysis Plan (pdf/doc/docx/txt/md, also in the Input Data Directory) | optional (read once for background context; never a data source) |
-| `hfc/structure.html` opened alongside the report at the final Review & Approve gate (first-ever setup only — a rebuild opens only the report) | yes |
+| `hfc/structure.html` opened *before* the report at the final Review & Approve gate (first-ever setup only — a rebuild opens only the report) | yes |
 | Setup window (A1) — Gates 2-3: data found, Instructions (incl. any specific-check requests) confirmed | yes |
 | Completion Signal window (A1) — Gate 4: gate question(s)/reasons or roster/primary-secondary confirmed, if a signal was detected | yes |
 | Entity/Group/Enumerator/timing/GPS/media/consent columns, Country, and every A2 module setting decided silently, from the agent's own reading of the data profile (no confirmation by default) | yes (reviewable via "Walk me through all modules" at Review & Approve) |
@@ -42,7 +42,7 @@ Use after Pipeline A (setup) and again after Pipeline B (post-feedback).
 
 ## Smoke
 
-- [ ] `hfc/outputs/<MMDD>_HFCs.html` opens at the final Review & Approve gate; `hfc/structure.html` opens alongside it only on a true first-ever setup
+- [ ] On a true first-ever setup, `hfc/structure.html` opens *before* `hfc/outputs/<MMDD>_HFCs.html` at the final Review & Approve gate; on a rebuild, the report opens alone
 - [ ] Report tables searchable; GPS map present when M10 on and coordinates exist, with every valid-coordinate point shown; no flagged (red) points unless the project specifically turned on the advanced distance flag
 - [ ] Last Day tab present and populated when a last date was confirmed
 - [ ] Every table sorted by date (most recent first), then enumerator, then unique ID

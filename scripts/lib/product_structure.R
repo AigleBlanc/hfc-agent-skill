@@ -47,15 +47,6 @@ write_product_structure_html <- function(cfg, open = FALSE) {
       margin: 0 0 0.4rem;
     }
     .lede { color: var(--muted); max-width: 40rem; margin: 0 0 1.75rem; }
-    .note {
-      border-left: 3px solid var(--accent);
-      padding: 0.65rem 1rem;
-      background: rgba(61, 154, 122, 0.08);
-      color: var(--muted);
-      font-size: 0.92rem;
-      margin-bottom: 1.5rem;
-    }
-    .note strong { color: var(--accent2); font-weight: 600; }
     .tree {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -77,14 +68,13 @@ write_product_structure_html <- function(cfg, open = FALSE) {
 <body>
   <main>
     <h1>HFC Agent Skill product — ', proj_name, '</h1>
-    <p class="lede">Built artifacts for this survey live under <code>hfc/</code>, inside your configured code output directory — decoupled from wherever the raw data actually lives. Raw microdata is read in place and never copied. The shared <code>issue_tracking.xlsx</code> — and its dated snapshot/resolutions subfolders — live entirely in your configured OneDrive folder, not shown in this local tree.</p>
-    <p class="note"><strong>Review in browser, then Continue.</strong> Confirm this layout via AskUserQuestion before the full build writes checks, the report, and the shared issue tracking file.</p>
+    <p class="lede">Built artifacts for this survey live under <code>hfc/</code>, inside your configured code output directory — decoupled from wherever the raw data actually lives. Raw microdata is read in place and never copied. The shared <code>issue_tracking.xlsx</code> and its dated snapshot/resolutions subfolders live entirely in your configured OneDrive folder, not shown in this local tree.</p>
     <div class="tree" aria-label="Configured directories">
       <ul class="tree-root">
-        <li class="dir"><span class="name">input_data_dir</span><span class="meta">', cfg$input_data_dir, ' — read in place, never copied</span></li>
-        <li class="dir"><span class="name">media_dir</span><span class="meta">', media_line, '</span></li>
-        <li class="dir"><span class="name">onedrive_output_dir</span><span class="meta">', cfg$onedrive_output_dir, ' — issue_tracking.xlsx + snapshots</span></li>
-        <li class="dir"><span class="name">code_output_dir</span><span class="meta">', cfg$code_output_dir, '</span>
+        <li class="dir"><span class="name">Input data directory</span><span class="meta">', cfg$input_data_dir, ' — read in place, never copied</span></li>
+        <li class="dir"><span class="name">Media directory</span><span class="meta">', media_line, '</span></li>
+        <li class="dir"><span class="name">HFC output directory</span><span class="meta">', cfg$onedrive_output_dir, ' — issue_tracking.xlsx + snapshots</span></li>
+        <li class="dir"><span class="name">Code output directory</span><span class="meta">', cfg$code_output_dir, '</span>
           <ul>
             <li class="dir"><span class="name">hfc/</span>
               <ul>
@@ -110,7 +100,7 @@ write_product_structure_html <- function(cfg, open = FALSE) {
         </li>
       </ul>
     </div>
-    <footer>HFC Agent Skill · product structure · confirm Continue in chat after reviewing</footer>
+    <footer>HFC Agent Skill · code output structure</footer>
   </main>
 </body>
 </html>
