@@ -87,7 +87,7 @@ write_product_structure_html <- function(cfg, open = FALSE) {
                   </ul>
                 </li>
                 <li class="dir"><span class="name">instruments/</span><span class="meta">optional form copy</span></li>
-                <li class="dir"><span class="name">outputs/</span><span class="meta">&lt;MMDD&gt;_HFCs.html (dated per build) · issues.csv</span></li>
+                <li class="dir"><span class="name">outputs/</span><span class="meta">&lt;MMDD&gt;_HFCs.html (condensed daily update, dated per build) · issues.csv · detailed/&lt;MMDD&gt;_HFCs_detailed.html (full report)</span></li>
                 <li class="dir"><span class="name">code/</span><span class="meta">main.R</span>
                   <ul>
                     <li class="dir"><span class="name">checks/</span><span class="meta">M1–M14 (runnable) + custom (e.g. example_check.R)</span></li>

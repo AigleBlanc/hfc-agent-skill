@@ -863,6 +863,94 @@ CUSTOM_HTML_RENDERERS <- list(
     M12 = render_balance_tables_body
 )
 
+# The report's top-left title: hardcoded "HFC MM/DD", the same day the file is
+# named for (the day it was generated). Deliberately never inferred from the
+# project, data, or config.
+report_title_label <- function(date = Sys.Date()) paste0("HFC ", format(date, "%m/%d"))
+
+# "Aug 17" / "May 09": abbreviated month + zero-padded day, the one date
+# format the summary messages use (never 08/17). Locale-independent.
+format_summary_date <- function(x) {
+    d <- suppressWarnings(as.Date(as.character(x)))
+    ifelse(is.na(d), NA_character_, paste(month.abb[as.integer(format(d, "%m"))], format(d, "%d")))
+}
+
+# Warns (never errors) when a summary message uses a relative day
+# ("today"), a numeric date, or doesn't name the last data-collection day.
+lint_summary_messages <- function(code_output_dir, last_date) {
+    want <- format_summary_date(last_date)
+    for (f in c("summary_message.md", "summary_condensed.md")) {
+        path <- hfc_path(code_output_dir, "config", f)
+        if (!file.exists(path)) next
+        txt <- paste(readLines(path, warn = FALSE), collapse = "\n")
+        if (grepl("\\b(today|today's|yesterday|tonight)\\b", txt, ignore.case = TRUE)) {
+            message("WARNING: ", f, " uses a relative day (today/yesterday). Name the actual day instead, e.g. ", want %||% "Aug 17", ".")
+        }
+        if (grepl("\\b\\d{1,2}/\\d{1,2}\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b", txt)) {
+            message("WARNING: ", f, " uses a numeric date. Use the 'Mon DD' form (e.g. ", want %||% "Aug 17", ").")
+        }
+        if (!is.na(want) && !grepl(want, txt, fixed = TRUE)) {
+            message("WARNING: ", f, " never names the last day of data collection (", want, ").")
+        }
+    }
+    invisible(NULL)
+}
+
+CONDENSED_PLACEHOLDER_TEXT <- "Condensed summary not yet drafted."
+
+# Reads the agent-drafted condensed message (hfc/config/summary_condensed.md).
+read_condensed_message <- function(code_output_dir) {
+    path <- hfc_path(code_output_dir, "config", "summary_condensed.md")
+    if (!file.exists(path)) return(NA_character_)
+    txt <- paste(readLines(path, warn = FALSE), collapse = "\n")
+    if (!nzchar(trimws(txt))) return(NA_character_)
+    txt
+}
+
+# Renders the condensed message: same markdown-lite as the long narrative,
+# with each label paragraph ("Enumerators on Aug 17:", "Issues to highlight:")
+# set in bold.
+render_condensed_narrative <- function(txt) {
+    html <- render_summary_narrative(txt)
+    gsub("<p>([^<]{1,80}:)</p>", "<p class='label'><strong>\\1</strong></p>", html)
+}
+
+# The condensed report: a bare page holding only the condensed message - no
+# header/nav, About, tables, module sections or footer.
+condensed_report_html <- function(message_txt, report_title = report_title_label()) {
+    body <- if (!is.na(message_txt)) {
+        render_condensed_narrative(message_txt)
+    } else {
+        paste0("<p class='placeholder'><em>", CONDENSED_PLACEHOLDER_TEXT, "</em></p>")
+    }
+    paste0(
+"<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'/>",
+"<meta name='viewport' content='width=device-width, initial-scale=1'/>",
+"<title>", report_title, "</title><style>
+:root{--bg:#f4efe6;--ink:#1c1914;--muted:#5c564c;--card:#fffdf8;--line:#ddd4c4;--accent:#2a6f5e}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Source Serif 4',Georgia,serif;background:var(--bg);color:var(--ink);line-height:1.6;font-size:1.05rem}
+header.top{max-width:760px;margin:0 auto;padding:1.4rem 1.25rem 0;font-family:'IBM Plex Sans',system-ui,sans-serif;font-weight:600;font-size:1.05rem;letter-spacing:.02em}
+main{max-width:760px;margin:0 auto;padding:1.2rem 1.25rem 3rem}
+.message{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:1.6rem 1.9rem}
+.message p{margin:0 0 1.5rem}
+.message p.label{margin:0 0 .5rem;font-family:'IBM Plex Sans',system-ui,sans-serif}
+.message ul,.message ol{margin:0 0 1.5rem;padding-left:1.4rem}
+.message li{margin:.4rem 0}
+.message > :last-child{margin-bottom:0}
+.placeholder{color:var(--muted)}
+</style>
+<link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap' rel='stylesheet'/>
+</head><body><header class='top'>", report_title, "</header><main><div class='message'>", body, "</div></main></body></html>")
+}
+
+# Path of the detailed copy of a report: a `detailed/` subfolder next to it,
+# with "_detailed" before the extension (<MMDD>_HFCs.html ->
+# detailed/<MMDD>_HFCs_detailed.html).
+detailed_report_path <- function(html_path) {
+    file.path(dirname(html_path), "detailed", sub("\\.html$", "_detailed.html", basename(html_path)))
+}
+
 write_html_report <- function(findings, code_output_dir, project_id, open = FALSE,
                                     roles = NULL, ds = NULL, report_cfg = NULL,
                                     module_notes = NULL, stats = NULL, modules = NULL,
@@ -1139,7 +1227,7 @@ write_html_report <- function(findings, code_output_dir, project_id, open = FALS
     html <- paste0(
         "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'/>",
         "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
-        "<title>HFCs</title>",
+        "<title>", report_title_label(), "</title>",
         "<style>
 :root{--bg:#f4efe6;--ink:#1c1914;--muted:#5c564c;--card:#fffdf8;--line:#ddd4c4;--accent:#2a6f5e;--nav:#1a222c}
 *{box-sizing:border-box}
@@ -1198,7 +1286,7 @@ footer.note{margin-top:1.5rem;color:var(--muted);font-size:.9rem}
 </style>
 <link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap' rel='stylesheet'/>
 </head><body>",
-    "<header class='nav'><span class='brand'>HFC Agent Skill</span>",
+    "<header class='nav'><span class='brand'>", report_title_label(), "</span>",
     paste(nav_links, collapse = " "),
     "</header><main>",
     "<h1>HFCs</h1>",
@@ -1275,7 +1363,13 @@ footer.note{margin-top:1.5rem;color:var(--muted);font-size:.9rem}
 </script>",
     "</body></html>"
   )
-  writeLines(html, html_path)
+  # The full report lives in detailed/; the parent file is the condensed
+  # report - just the agent-drafted condensed message.
+  lint_summary_messages(code_output_dir, roles$last_date %||% NA_character_)
+  detailed_path <- detailed_report_path(html_path)
+  dir.create(dirname(detailed_path), showWarnings = FALSE, recursive = TRUE)
+  writeLines(html, detailed_path)
+  writeLines(condensed_report_html(read_condensed_message(code_output_dir), report_title_label()), html_path)
 
   if (isTRUE(open) && !identical(Sys.getenv("CI"), "true") &&
       !identical(Sys.getenv("HFC_NO_OPEN"), "1")) {

@@ -71,7 +71,8 @@ Rscript .claude/skills/hfc-agent-skill/scripts/commit_merged_issue_tracking.R me
 | Artifact | Path | Purpose |
 |---|---|---|
 | Product map | `hfc/structure.html` | Review tree in browser before Continue |
-| HTML report | `hfc/outputs/<MMDD>_HFCs.html` | Navigable findings (searchable tables, GPS map) |
+| Condensed report | `hfc/outputs/<MMDD>_HFCs.html` | The short daily update: completion, reasons, enumerators, issues to highlight |
+| Detailed report | `hfc/outputs/detailed/<MMDD>_HFCs_detailed.html` | Navigable findings (searchable tables, GPS map), also copied to the shared output folder's `detailed/` |
 | Issue tracking | OneDrive-synced `issue_tracking.xlsx` (required, no local copy) | The one shared file — agent, RA, and field team all edit it |
 | Findings | `hfc/outputs/issues.csv` | Machine-readable findings |
 | Fixed data | `<HFC Output Directory>/Updated Data/<stem>.<ext>` | After Pipeline B; raw unchanged |

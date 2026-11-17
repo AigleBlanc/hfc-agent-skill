@@ -52,7 +52,7 @@ if (!isTRUE(cfg$found)) {
 # ---------------------------------------------------------------------------
 # Pipeline A — Setup build (after confirming modules in chat)
 # Writes hfc/code/checks/, hfc/outputs/issues.csv, issue_tracking.xlsx
-# (OneDrive), hfc/outputs/<MMDD>_HFCs.html.
+# (OneDrive), hfc/outputs/<MMDD>_HFCs.html (plus its detailed/<MMDD>_HFCs_detailed.html copy).
 # ---------------------------------------------------------------------------
 # Rscript file.path(skill, "scripts", "run_setup_build.R") --open
 # Optional: --sample N

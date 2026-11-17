@@ -197,7 +197,7 @@ html_path <- write_html_report(
 )
 tryCatch({
     modules_present <- compute_modules_present(findings, stats, modules)
-    v <- validate_report_contract(html_path, file.path(skill, "assets", "report_sections.json"), modules_present, modules)
+    v <- validate_report_contract(detailed_report_path(html_path), file.path(skill, "assets", "report_sections.json"), modules_present, modules)
     message(format_report_contract(v))
 }, error = function(e) message("Report contract check skipped: ", e$message))
 
@@ -215,4 +215,5 @@ message("Issue tracking folder: ", ctx$local_dir %||% "(unavailable)", " (", ctx
 message("MERGE_PENDING: review merged_issue_tracking.xlsx, then after the final approval gate:")
 message("  Rscript .claude/skills/hfc-agent-skill/scripts/commit_merged_issue_tracking.R merged_issue_tracking.xlsx")
 message("Report copy: ", report_copy$status, " (", report_copy$reason %||% "", ") ", report_copy$dest_path %||% "(none)")
+message("Detailed report: ", detailed_report_path(html_path), if (!is.na(report_copy$detailed_dest_path %||% NA_character_)) paste0(" (copied to ", report_copy$detailed_dest_path, ")") else "")
 message("When field edits issue_tracking, run: Process HFC feedback")

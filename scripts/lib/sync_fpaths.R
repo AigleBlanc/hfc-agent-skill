@@ -70,9 +70,11 @@ ensure_local_folder <- function(path) {
     path
 }
 
-# Copies the built HTML report into the shared OneDrive folder.
+# Copies the built HTML report into the shared OneDrive folder, plus its
+# detailed copy into that folder's detailed/ subfolder.
 copy_report_to_sync_folder <- function(project_id, skill_dir = NULL, html_path) {
-    out <- list(status = "skipped", reason = "no_config", dest_path = NA_character_)
+    out <- list(status = "skipped", reason = "no_config", dest_path = NA_character_,
+                detailed_dest_path = NA_character_)
     if (is.null(skill_dir) || is.na(skill_dir)) skill_dir <- skill_dir_guess()
     cfg <- load_hfc_config(skill_dir)
     if (!isTRUE(cfg$found)) {
@@ -92,6 +94,19 @@ copy_report_to_sync_folder <- function(project_id, skill_dir = NULL, html_path) 
             out$status <- "ok"
             out$reason <- "copied"
             out$dest_path <- dest_path
+            det_src <- detailed_report_path(html_path)
+            if (file.exists(det_src)) {
+                det_dir <- file.path(cfg$onedrive_output_dir, "detailed")
+                dir.create(det_dir, showWarnings = FALSE, recursive = TRUE)
+                det_dest <- file.path(det_dir, basename(det_src))
+                if (isTRUE(file.copy(det_src, det_dest, overwrite = TRUE))) {
+                    out$detailed_dest_path <- det_dest
+                } else {
+                    out$reason <- "copied (detailed copy failed)"
+                }
+            } else {
+                out$reason <- "copied (no detailed copy found)"
+            }
         } else {
             out$reason <- "copy_failed"
         }

@@ -118,7 +118,7 @@ html_path <- write_html_report(
 )
 tryCatch({
     modules_present <- compute_modules_present(filtered, res$stats, modules)
-    v <- validate_report_contract(html_path, file.path(skill, "assets", "report_sections.json"), modules_present, modules)
+    v <- validate_report_contract(detailed_report_path(html_path), file.path(skill, "assets", "report_sections.json"), modules_present, modules)
     message(format_report_contract(v))
 }, error = function(e) message("Report contract check skipped: ", e$message))
 
@@ -126,3 +126,4 @@ report_copy <- copy_report_to_sync_folder(project_id, skill_dir = skill, html_pa
 
 message("Done. HTML: ", html_path)
 message("Report copy: ", report_copy$status, " (", report_copy$reason %||% "", ") ", report_copy$dest_path %||% "(none)")
+message("Detailed report: ", detailed_report_path(html_path), if (!is.na(report_copy$detailed_dest_path %||% NA_character_)) paste0(" (copied to ", report_copy$detailed_dest_path, ")") else "")

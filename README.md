@@ -107,8 +107,8 @@ The agent only stops to ask you a handful of things (at most five during "Run HF
 4. **Instructions.** You can tell it anything it should know up front: checks to switch off, the country, specific checks you want (e.g. "flag interviews under 10 minutes"). It also writes a blank `hfc/config/modules.yaml` you can pre-fill yourself. Requests that match a standard check adjust that check; anything else becomes a custom Field Request (M9) check.
 5. **Completion signal (only when one is found).** The agent shows how it will tell which planned surveys were completed (a screening/eligibility question, a target roster, or a primary/secondary column) and the reason labels it will use. Once confirmed, the other checks run only on completed surveys.
 6. **Everything else is decided for you.** Respondent ID, enumerator, country and timezone, timing and GPS columns, important variables, thresholds and labels are chosen by the agent and saved to `hfc/config/role_map.yaml` and `modules.yaml`, with no questions. You can review any of it at the end.
-7. **Build.** It runs the checks (M1–M14), writes the report and a short summary of the **latest day's** data collection, and drafts your project README.
-8. **Review & Approve.** Your browser opens `hfc/structure.html` (first setup only) and then the report `hfc/outputs/<MMDD>_HFCs.html`. You then choose one of three paths:
+7. **Build.** It runs the checks (M1–M14), writes the detailed report and a short update on the **latest day's** data collection, and drafts your project README. The short update is also posted in chat, ready to share.
+8. **Review & Approve.** Your browser opens `hfc/structure.html` (first setup only) and then the short report `hfc/outputs/<MMDD>_HFCs.html` (the detailed report stays in `detailed/`). You then choose one of three paths:
    - **All good!** The findings are committed to the live shared `issue_tracking.xlsx`.
    - **Walk me through all modules.** The agent replays each setting as a quick confirm-or-correct pass, then rebuilds.
    - **Other.** Describe a fix, or say you've hand-edited `modules.yaml` or `role_map.yaml`; the agent re-reads them, rebuilds and asks again.
@@ -124,7 +124,7 @@ The field team and RA write comments directly into `issue_tracking.xlsx` (Commen
 3. For each row, the agent writes the fix in code (saved under `hfc/code/resolutions/`), applies it to a copy of the data, and sets the `Status` and `Corrections`, all in the clone. Anything it can't confidently fix is marked `Needs Review`.
 4. It merges the clone back into a pending file and shows you the counts (Resolved / Needs Review).
 5. Only after you confirm does the live `issue_tracking.xlsx` get updated.
-6. It then rebuilds the report against the fixed data. Resolved findings disappear from the HTML report, but the spreadsheet keeps the full history.
+6. It then rebuilds the report against the fixed data. Resolved findings disappear from the detailed report, but the spreadsheet keeps the full history.
 
 ### What the `Status` column means
 
@@ -144,7 +144,8 @@ You don't have to set `Accepted` before the agent will act — it picks up any `
 
 | What | Where |
 |---|---|
-| HTML report | `<Code Output Directory>/hfc/outputs/<MMDD>_HFCs.html` |
+| Condensed report (short update) | `<Code Output Directory>/hfc/outputs/<MMDD>_HFCs.html`, with a copy in your HFC Output Directory. One page holding just the daily message: that day's submissions and completions, cumulative completion against the target, non-completion reasons, the enumerator roster and up to 5 issues to highlight |
+| Detailed report (full findings) | `<MMDD>_HFCs_detailed.html` in a `detailed/` subfolder of both `hfc/outputs/` and your HFC Output Directory |
 | Product map (first setup) | `<Code Output Directory>/hfc/structure.html` |
 | Saved settings you can hand-edit | `<Code Output Directory>/hfc/config/role_map.yaml` and `modules.yaml` |
 | Runnable check scripts | `<Code Output Directory>/hfc/code/checks/` (`main.R` runs them all) |

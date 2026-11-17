@@ -20,7 +20,8 @@ Use after Pipeline A (setup) and again after Pipeline B (post-feedback).
 | `hfc/code/checks/` modules (real, runnable per-module scripts + custom), plus `main.R` running all of them in one call | yes |
 | `hfc/outputs/issues.csv` with stable, content-derived `finding_id` (Issue ID) | yes |
 | Live `issue_tracking.xlsx` in OneDrive, with `Status` | yes (defaults Open; the one shared file — agent, RA, and field team all edit it; no local copy) |
-| `hfc/outputs/<MMDD>_HFCs.html` | yes (navigable; searchable tables) |
+| `hfc/outputs/<MMDD>_HFCs.html` (titled `HFC MM/DD`, same on the detailed report; condensed: only the daily message from `hfc/config/summary_condensed.md`) | yes |
+| `hfc/outputs/detailed/<MMDD>_HFCs_detailed.html` (also copied to the HFC Output Directory's `detailed/`) | yes (the full report: navigable, searchable tables) |
 | Project `README.md` drafted from `assets/README_template.md` | yes (drafted automatically, no confirmation) |
 
 ## OneDrive (required)

@@ -1,5 +1,6 @@
 {
     "notes": {
+        "Scope": "This spec describes the DETAILED report (detailed/<MMDD>_HFCs_detailed.html) only. The parent <MMDD>_HFCs.html is the condensed report: just the condensed message, none of these sections.",
         "Placeholders": "<Respondent> and <Group> stand in for this project's own configured labels (e.g. 'Respondent', 'Subcounty', 'Treatment Arms', etc) - resolved per project, never literal column headers. <Respondent> is ID-only by default (never the real name); <Group>/Enumerator resolve to name-if-available by default.",
         "Table grouping rule": "Every findings table in every section below is a SINGLE table, sorted by date (most recent first) then enumerator - never split or collapsed by enumerator. The ONLY exception is 'All Issues', which additionally breaks out one collapsible sub-table per enumerator below its own single main table. A section whose findings are inherently enumerator-level or group-level aggregates (no per-row date) sorts by whatever identifying column it has instead (e.g. Duplicates sorts by <Respondent>).",
         "Completion note": "Completion (M1) does not include a 'by enumerator, latest day' table.",

@@ -9,6 +9,8 @@ Two dated-snapshot subfolders live alongside the live file, inside the same sync
 | `intermediate/` | `<YYYYMMDD>_issue_tracking.xlsx` | every `run_setup_build.R` run | this run's freshly computed findings, before merging into the live file |
 | `resolutions/` | `<YYYYMMDD>_issues_resolution.xlsx` | `apply_feedback.R clone` | the agent's working clone for one day's "Process HFC feedback" pass |
 
+The built HTML reports sit in the same folder as the live file: `<MMDD>_HFCs.html`, plus `detailed/<MMDD>_HFCs_detailed.html` (the full report; see `copy_report_to_sync_folder()` in `scripts/lib/sync_fpaths.R`).
+
 Agent-fixed microdata lives in a third, separate subfolder of the same synced folder, `Updated Data/<stem>.<ext>` — see `write_intermediate()` in `scripts/lib/utils.R`. Unlike the two dated snapshots above, it's one evolving file per source rather than one file per day.
 
 A same-day rerun overwrites that day's snapshot/clone rather than creating a second dated file (so an in-progress "Process HFC feedback" pass isn't discarded by a second look the same day).
