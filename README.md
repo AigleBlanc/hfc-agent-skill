@@ -149,7 +149,7 @@ You don't have to set `Accepted` before the agent will act — it picks up any `
 | Saved settings you can hand-edit | `<Code Output Directory>/hfc/config/role_map.yaml` and `modules.yaml` |
 | Runnable check scripts | `<Code Output Directory>/hfc/code/checks/` (`main.R` runs them all) |
 | Your project README | `<Code Output Directory>/README.md` |
-| Shared tracking file | `issue_tracking.xlsx` — in your configured **HFC Output Directory** (required, no local copy) |
+| Shared tracking file | `issue_tracking.xlsx` — in your configured **HFC Output Directory** (required, no local copy). Two sheets: **Tracking** (flagged issues) and **Completion** (one row per respondent in your sample, with `submitted`, `completed` and `reason_no_completion`) |
 | Dated snapshots | `<HFC Output Directory>/intermediate/` (one per setup run) and `resolutions/` (working clone for feedback passes) |
 | Fixed data (raw is never touched) | `<HFC Output Directory>/Updated Data/<stem>.<ext>` |
 | Your original data | your **Input Data Directory** — never modified |

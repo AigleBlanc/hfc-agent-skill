@@ -49,7 +49,9 @@ if (!isTRUE(v$ok)) {
   stop("merge_issues.R: verification failed — merged_issue_tracking.xlsx NOT written. See the verification output above.")
 }
 
-res <- write_named_tracking_file(ctx, merged, "merged_issue_tracking.xlsx", entity_label = entity_label, group_label = group_label)
+# The snapshot already holds today's fresh Completion sheet (built from the data).
+res <- write_named_tracking_file(ctx, merged, "merged_issue_tracking.xlsx", entity_label = entity_label, group_label = group_label,
+                                 completion = read_completion_sheet(ctx, snapshot_tracking_filename(), subfolder = "intermediate"))
 
 message("Wrote merged_issue_tracking.xlsx (", nrow(merged), " rows: ", nrow(current), " existing + ",
         nrow(merged) - nrow(current), " new).")

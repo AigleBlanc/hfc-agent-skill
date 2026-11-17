@@ -96,6 +96,17 @@ if (is.null(ctx$tbl)) {
 fb_fresh <- findings_to_issue_tracking(res$findings, roles = roles)
 write_tracking_snapshot(ctx, fb_fresh, entity_label = entity_label, group_label = group_label)
 
+# Refresh ONLY the derived Completion sheet in the live file against the
+# latest (fixed) data - the Tracking sheet is never touched here.
+tryCatch({
+    existing_completion <- read_completion_sheet(ctx, ctx$dest_name)
+    completion_tbl <- build_completion_table(ds, roles, modules, target_ds = target_ds, existing = existing_completion)
+    if (!is.null(completion_tbl)) {
+        refresh_completion_sheet(ctx, ctx$dest_name, completion_tbl)
+        message("Completion sheet refreshed (", nrow(completion_tbl), " rows).")
+    }
+}, error = function(e) message("Completion sheet not refreshed: ", e$message))
+
 filtered <- filter_findings_by_tracking_status(res$findings, ctx$tbl)
 message("Findings after dropping Resolved/untracked: ", nrow(filtered), " of ", nrow(res$findings))
 

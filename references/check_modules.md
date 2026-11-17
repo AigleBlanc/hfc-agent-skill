@@ -26,6 +26,8 @@ An M9 custom check tagging its rows `category = "field_request"` renders in M9's
 
 ## M1 — Completion
 
+M1's non-completion reasons also feed the **Completion** sheet of `issue_tracking.xlsx` (one row per respondent; see `references/issue_tracking_schema.md`) — both come from the same helpers in `scripts/lib/run_checks.R`, so they always agree.
+
 **Default: ON.** Redefined from "did this row finish" to "were all planned surveys conducted." Signal type comes from the Completion Signals window (`roles$completion_primary_signal`) — the report's Completion section states which one applies for this project (`module_desc.R`'s `m1_desc()`).
 
 - **gating (preferred)** — one or more real screening/eligibility questions read from the instrument (`modules$M1$gate_cols`, in form order, each with a confirmed `gate_pass_values` entry). A respondent is complete only if they pass every gate; failing any one means the rest of the survey was never reached. Filters M2–M14 to the completed subset. `gate_min_date` (per-gate, optional) exempts submissions dated before a gate existed on the form from failing it. `governing_gate` (optional, at most one) lets a later gate's pass override an earlier gate's still-failed/blank status for that row.

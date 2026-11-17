@@ -22,7 +22,7 @@ Rscript .claude/skills/hfc-agent-skill/scripts/run_setup_build.R
 Rscript "${CLAUDE_SKILL_DIR}/scripts/run_setup_build.R"
 ```
 
-**Built product** (`config/`, `instruments/`, `outputs/`, `code/` — with `code/checks/` and `code/resolutions/`) always lands under **`hfc/`** inside the configured Code Output Directory. `issue_tracking.xlsx` itself lives entirely in the configured HFC Output Directory (required — see A0), not under `hfc/`. `hfc/structure.html` and the report open together at the very end (A4), for the final Review & Approve gate — see Pipeline A below.
+**Built product** (`config/`, `instruments/`, `outputs/`, `code/` — with `code/checks/` and `code/resolutions/`) always lands under **`hfc/`** inside the configured Code Output Directory. `issue_tracking.xlsx` itself lives entirely in the configured HFC Output Directory (required — see A0), not under `hfc/`; it has two sheets, **Tracking** (the findings) and **Completion** (a respondent-level copy of the roster, or of the surveyed IDs when there's no roster, plus `submitted`, `completed` and `reason_no_completion` — see `references/issue_tracking_schema.md`). `hfc/structure.html` and the report open together at the very end (A4), for the final Review & Approve gate — see Pipeline A below.
 
 Two pipelines — choose by the user's prompt (see `references/prompts.md`):
 
@@ -50,7 +50,7 @@ Helpers (prefer `Rscript` rather than reimplementing):
 - `scripts/rebuild_report.R` — post-resolution report refresh (Pipeline B step 7): re-runs checks against the latest data, drops Resolved/untracked findings from `<MMDD>_HFCs.html` only (`issue_tracking.xlsx` keeps full history)
 - `scripts/apply_feedback.R` — post-feedback CLI (`clone` / `list-open` / `apply` / `needs-review`); fix logic is agent-authored, see `scripts/lib/apply_feedback_helpers.R`
 - `scripts/merge_issues.R` / `scripts/merge_resolutions.R` — fold a dated snapshot / resolutions clone back into `issue_tracking.xlsx`, producing a `merged_*.xlsx` for the agent to review
-- `scripts/commit_merged_issue_tracking.R` — the only script that ever overwrites the live `issue_tracking.xlsx`, run only after explicit AskUserQuestion confirmation
+- `scripts/commit_merged_issue_tracking.R` — the only script that ever overwrites the live `issue_tracking.xlsx` (Tracking and Completion sheets together), run only after explicit AskUserQuestion confirmation
 - `assets/README_template.md` / `assets/README_example.md` — draft project README on setup
 - `assets/summary_message_example.md` — annotated calibration example for the A4 Summary narrative
 - `assets/check_templates/` — M1–M14 real, runnable per-module scripts, copied into `hfc/code/checks/` at build time (same logic as `scripts/lib/run_checks.R`'s `check_mN()` functions, `scripts/lib/media.R` for M13); the Input Data Directory is read live from `config.json` each time a copied script runs, not frozen at generation time. `hfc/code/checks/main.R` (also copied every build) runs every one of these in one call — it sources each and calls the function it defines, never a second copy of their logic.
@@ -324,7 +324,7 @@ There is no built-in fix-classification engine. **You (the agent) read and inter
    ```bash
    Rscript .claude/skills/hfc-agent-skill/scripts/rebuild_report.R
    ```
-   Re-runs M1–M14 against the latest data (`<HFC Output Directory>/Updated Data/` if any fixes were applied, else the original file in the Input Data Directory) using the project's stored config, then drops any finding from the report whose live-tracking Status is now `Resolved`, or whose Issue ID no longer appears in `issue_tracking.xlsx` at all — display-only: the xlsx itself keeps full history unchanged, this only affects what `<MMDD>_HFCs.html` shows. Re-read `hfc/outputs/issues.csv` and redraft the Summary narrative (`hfc/config/summary_message.md`, same approach as A4 step 6) against these fresh findings, then re-run with `--open`:
+   Re-runs M1–M14 against the latest data (`<HFC Output Directory>/Updated Data/` if any fixes were applied, else the original file in the Input Data Directory) using the project's stored config, refreshes the live file's derived **Completion** sheet (that sheet only; Tracking is untouched — the one write to the live file outside `commit_merged_issue_tracking.R`), then drops any finding from the report whose live-tracking Status is now `Resolved`, or whose Issue ID no longer appears in `issue_tracking.xlsx` at all — display-only: the xlsx itself keeps full history unchanged, this only affects what `<MMDD>_HFCs.html` shows. Re-read `hfc/outputs/issues.csv` and redraft the Summary narrative (`hfc/config/summary_message.md`, same approach as A4 step 6) against these fresh findings, then re-run with `--open`:
    ```bash
    Rscript .claude/skills/hfc-agent-skill/scripts/rebuild_report.R --open
    ```

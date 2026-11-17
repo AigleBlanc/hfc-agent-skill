@@ -13,6 +13,18 @@ Agent-fixed microdata lives in a third, separate subfolder of the same synced fo
 
 A same-day rerun overwrites that day's snapshot/clone rather than creating a second dated file (so an in-progress "Process HFC feedback" pass isn't discarded by a second look the same day).
 
+## Completion sheet
+
+`issue_tracking.xlsx` has a second sheet, **Completion**, next to **Tracking**: one row per respondent in the planned sample, built by `build_completion_table()` (`scripts/lib/run_checks.R`).
+
+- **With a roster** (`role_map.yaml`'s `roster_file_path`): the roster copied verbatim, plus three new columns. **Without one:** one row per unique respondent ID found in the survey data.
+- `submitted`: `1` if the respondent's ID appears in the survey data, else `0`. Always `1` when there is no roster.
+- `completed`: `1` if any of the respondent's rows passes the completion signal (the same flag M1 uses), else `0`.
+- `reason_no_completion`: blank when completed. Otherwise, the failed gate's reason (same `M1.gate_fail_reasons` text as M1's reasons table); for a roster respondent never submitted, the roster status mapping (`M1.nonstart_status_col`/`nonstart_reason_map`), else "Not submitted". A submitted respondent who didn't complete under a non-gating signal reads "Incomplete".
+- **Matching:** `role_map.yaml`'s `completion_roster_key_col` (roster side) to `entity_id[[1]]` (survey side), as strings.
+- **Refresh:** regenerated on every setup build and again by `rebuild_report.R` after a feedback pass. Columns added by hand to the live sheet (matched by respondent ID) are kept. `rebuild_report.R` rewrites this sheet alone, via `refresh_completion_sheet()`. Tracking is never touched there.
+- **Carry-through:** `write_named_tracking_file()` keeps an existing Completion sheet by default, so `patch_tracking_cells()` and the merges never drop it. `commit_merged_issue_tracking.R` commits the merged file's Completion sheet along with Tracking.
+
 ## Columns
 
 Column order in every written file matches this table.

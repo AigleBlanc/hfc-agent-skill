@@ -36,7 +36,10 @@ ctx <- fetch_issue_tracking(skill_dir = skill, entity_label = entity_label, grou
 merged <- read_named_tracking_file(ctx, merged_filename, entity_label = entity_label, group_label = group_label)
 if (is.null(merged)) stop("No such merged file found: ", merged_filename)
 
-commit_issue_tracking(merged, skill_dir = skill, fetch_ctx = ctx, entity_label = entity_label, group_label = group_label)
+# The merged file carries the Completion sheet (fresh from the build, or the
+# live file's own for a resolutions merge) - commit it along with Tracking.
+completion <- read_completion_sheet(ctx, merged_filename)
+commit_issue_tracking(merged, skill_dir = skill, fetch_ctx = ctx, entity_label = entity_label, group_label = group_label, completion = completion)
 delete_named_tracking_file(ctx, merged_filename)
 
 message("Committed ", merged_filename, " -> issue_tracking.xlsx (", nrow(merged), " rows). ", merged_filename, " deleted.")

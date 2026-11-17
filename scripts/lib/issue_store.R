@@ -47,16 +47,78 @@ read_named_tracking_file <- function(ctx, dest_name, subfolder = NULL, entity_la
   read_issue_tracking(path, entity_label = entity_label, group_label = group_label)
 }
 
+COMPLETION_SHEET <- "Completion"
+
+# Makes submitted/completed real integers (a read-back from xlsx can leave
+# them as strings) before writing the Completion sheet.
+as_completion_sheet <- function(tbl) {
+  tbl <- as.data.frame(tbl, stringsAsFactors = FALSE, check.names = FALSE)
+  for (cn in intersect(c("submitted", "completed"), names(tbl))) {
+    tbl[[cn]] <- suppressWarnings(as.integer(tbl[[cn]]))
+  }
+  tbl
+}
+
+#' Reads the "Completion" sheet from an xlsx path; NULL if the file or the
+#' sheet doesn't exist (or it's empty).
+read_completion_path <- function(path) {
+  if (!file.exists(path)) return(NULL)
+  sheets <- tryCatch(openxlsx::getSheetNames(path), error = function(e) character())
+  if (!COMPLETION_SHEET %in% sheets) return(NULL)
+  tbl <- read_xlsx_verbatim_headers(path, COMPLETION_SHEET)
+  if (!nrow(tbl) || !ncol(tbl)) return(NULL)
+  tbl
+}
+
+#' Reads the Completion sheet of a named tracking file (NULL if none).
+read_completion_sheet <- function(ctx, dest_name, subfolder = NULL) {
+  dir <- if (!is.null(subfolder)) .tracking_subfolder(ctx, subfolder) else ctx$local_dir
+  read_completion_path(file.path(dir, dest_name))
+}
+
+#' Replaces ONLY the Completion sheet in an existing tracking file (the
+#' Tracking sheet is left exactly as it is). Same temp-file-then-rename
+#' write as write_named_tracking_file().
+refresh_completion_sheet <- function(ctx, dest_name, completion_tbl, subfolder = NULL) {
+  dir <- if (!is.null(subfolder)) .tracking_subfolder(ctx, subfolder) else ctx$local_dir
+  xlsx_path <- file.path(dir, dest_name)
+  if (!file.exists(xlsx_path)) stop("refresh_completion_sheet(): no file at ", xlsx_path)
+  suppressPackageStartupMessages(library(openxlsx))
+  wb <- loadWorkbook(xlsx_path)
+  if (COMPLETION_SHEET %in% names(wb)) removeWorksheet(wb, COMPLETION_SHEET)
+  addWorksheet(wb, COMPLETION_SHEET)
+  writeData(wb, COMPLETION_SHEET, as_completion_sheet(completion_tbl))
+  tmp_path <- file.path(dir, paste0(".", basename(dest_name), ".", Sys.getpid(), ".tmp"))
+  saveWorkbook(wb, tmp_path, overwrite = TRUE)
+  if (!file.rename(tmp_path, xlsx_path)) {
+    file.copy(tmp_path, xlsx_path, overwrite = TRUE)
+    file.remove(tmp_path)
+  }
+  list(status = "ok", path = xlsx_path)
+}
+
 #' Writes a tracking-shaped tibble as `dest_name`. Writes to a temp file
 #' first, then renames it into place, so an interruption mid-write can
 #' never leave the file corrupted.
-write_named_tracking_file <- function(ctx, tbl, dest_name, subfolder = NULL, entity_label = NA_character_, group_label = NA_character_) {
+#'
+#' `completion` controls the second "Completion" sheet: NULL = none, a
+#' data.frame = write it, "keep" (default) = carry over whatever Completion
+#' sheet already sits in the destination file, so a Tracking-only write
+#' (patch_tracking_cells(), a merge, a commit) never wipes it.
+write_named_tracking_file <- function(ctx, tbl, dest_name, subfolder = NULL, entity_label = NA_character_, group_label = NA_character_, completion = "keep") {
   dir <- if (!is.null(subfolder)) .tracking_subfolder(ctx, subfolder) else ctx$local_dir
   xlsx_path <- file.path(dir, dest_name)
   display <- prepare_tracking_display(tbl, entity_label, group_label)
   suppressPackageStartupMessages(library(openxlsx))
+  if (is.character(completion) && identical(completion, "keep")) {
+    completion <- read_completion_path(xlsx_path)
+  }
   wb <- createWorkbook(); addWorksheet(wb, "Tracking")
   writeData(wb, "Tracking", display)
+  if (is.data.frame(completion) && ncol(completion) > 0) {
+    addWorksheet(wb, COMPLETION_SHEET)
+    writeData(wb, COMPLETION_SHEET, as_completion_sheet(completion))
+  }
   tmp_path <- file.path(dir, paste0(".", basename(dest_name), ".", Sys.getpid(), ".tmp"))
   saveWorkbook(wb, tmp_path, overwrite = TRUE)
   if (!file.rename(tmp_path, xlsx_path)) {
@@ -131,19 +193,19 @@ fetch_issue_tracking <- function(skill_dir = NULL, entity_label = NA_character_,
 }
 
 #' Commits tbl as the live issue_tracking.xlsx.
-commit_issue_tracking <- function(tbl, skill_dir = NULL, fetch_ctx = NULL, entity_label = NA_character_, group_label = NA_character_) {
+commit_issue_tracking <- function(tbl, skill_dir = NULL, fetch_ctx = NULL, entity_label = NA_character_, group_label = NA_character_, completion = "keep") {
   ctx <- fetch_ctx %||% resolve_tracking_ctx(skill_dir)
   dest_name <- ctx$cfg$main_file %||% "issue_tracking.xlsx"
   verify_tracking_integrity(tbl)
-  write_named_tracking_file(ctx, tbl, dest_name, entity_label = entity_label, group_label = group_label)
+  write_named_tracking_file(ctx, tbl, dest_name, entity_label = entity_label, group_label = group_label, completion = completion)
 }
 
 snapshot_tracking_filename <- function(date = Sys.Date()) paste0(format(date, "%Y%m%d"), "_issue_tracking.xlsx")
 snapshot_resolution_filename <- function(date = Sys.Date()) paste0(format(date, "%Y%m%d"), "_issues_resolution.xlsx")
 
 #' Write/read today's intermediate/ snapshot (one per setup-build run).
-write_tracking_snapshot <- function(ctx, tbl, date = Sys.Date(), entity_label = NA_character_, group_label = NA_character_) {
-  write_named_tracking_file(ctx, tbl, snapshot_tracking_filename(date), subfolder = "intermediate", entity_label = entity_label, group_label = group_label)
+write_tracking_snapshot <- function(ctx, tbl, date = Sys.Date(), entity_label = NA_character_, group_label = NA_character_, completion = "keep") {
+  write_named_tracking_file(ctx, tbl, snapshot_tracking_filename(date), subfolder = "intermediate", entity_label = entity_label, group_label = group_label, completion = completion)
 }
 read_tracking_snapshot <- function(ctx, date = Sys.Date(), entity_label = NA_character_, group_label = NA_character_) {
   read_named_tracking_file(ctx, snapshot_tracking_filename(date), subfolder = "intermediate", entity_label = entity_label, group_label = group_label)

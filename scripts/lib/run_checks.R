@@ -348,6 +348,154 @@ compute_completion_flag <- function(ds, roles, modules) {
         gate_pass_fn = gate_pass_fn)
 }
 
+#' Row-level reason each `ds` row didn't complete (gating mode only): the
+#' FIRST gate (in confirmed order) it failed, since nothing after it was ever
+#' asked. Looks up a specific, substantive per-failing-VALUE reason from
+#' modules$M1$gate_fail_reasons (agent-derived at setup from the question's
+#' own label/choice list - e.g. "Household absent," not "Eligible") first,
+#' trying the decoded value-label when the gate column is value-labelled and
+#' it differs from the raw value, then the raw value itself; falls back to
+#' the gate's own generic label (gate_labels) only when neither has a
+#' specific entry. Returns a character vector aligned to `ds` (NA wherever no
+#' gate failed, or the signal isn't gating). Shared by check_m1() and
+#' build_completion_table() so the two never disagree.
+compute_noncompletion_reason_vec <- function(ds, modules, cf) {
+    reason_vec <- rep(NA_character_, nrow(ds))
+    if (!identical(cf$sig, "gating") || !length(cf$gate_cols)) return(reason_vec)
+    gate_labels <- modules$M1$gate_labels %||% list()
+    gate_fail_reasons <- modules$M1$gate_fail_reasons %||% list()
+    for (gc in cf$gate_cols) {
+        pv <- cf$gate_pass[[gc]] %||% NA_character_
+        if (is.na(pv)) next
+        failed <- !cf$gate_pass_fn(gc)
+        assign_idx <- is.na(reason_vec) & failed
+        if (any(assign_idx)) {
+        decoded <- decode_labelled_chr(ds[[gc]])
+        raw <- as.character(ds[[gc]])
+        gc_label <- gate_labels[[gc]] %||% gc
+        gc_reasons <- gate_fail_reasons[[gc]] %||% list()
+        v_dec <- decoded[assign_idx]
+        v_raw <- raw[assign_idx]
+        reason_vec[assign_idx] <- vapply(seq_along(v_dec), function(i) {
+            r <- if (!is.na(v_dec[i]) && v_dec[i] %in% names(gc_reasons)) {
+            gc_reasons[[v_dec[i]]]
+            } else if (!is.na(v_raw[i]) && v_raw[i] %in% names(gc_reasons)) {
+            gc_reasons[[v_raw[i]]]
+            } else NA_character_
+            if (!is.na(r) && nzchar(r)) r else gc_label
+        }, character(1))
+        }
+    }
+    reason_vec
+}
+
+#' Reason for each ROSTER row that was never attempted at all (no matching
+#' row in `ds`), mapped from the roster's own status column via
+#' modules$M1$nonstart_status_col/nonstart_reason_map; an unmapped status
+#' becomes "Other". Character vector aligned to `target_ds` - NA for a row
+#' that was attempted, has a blank status, or when no status column/roster is
+#' configured.
+compute_nonstart_reason_vec <- function(ds, roles, modules, target_ds) {
+    if (is.null(target_ds)) return(character(0))
+    out <- rep(NA_character_, nrow(target_ds))
+    nonstart_col <- modules$M1$nonstart_status_col %||% NA_character_
+    if (is.na(nonstart_col) || !nonstart_col %in% names(target_ds) ||
+        is.na(roles$entity_id[[1]] %||% NA_character_) || !roles$entity_id[[1]] %in% names(ds)) {
+        return(out)
+    }
+    entity_col <- roles$entity_id[[1]]
+    roster_key_col <- roles$completion_roster_key_col %||% entity_col
+    if (!roster_key_col %in% names(target_ds)) return(out)
+    nonstart_map <- modules$M1$nonstart_reason_map %||% list()
+    attempted_keys <- unique(as.character(ds[[entity_col]]))
+    never_attempted <- !as.character(target_ds[[roster_key_col]]) %in% attempted_keys
+    status_raw <- as.character(target_ds[[nonstart_col]])
+    use <- never_attempted & !is.na(status_raw) & nzchar(status_raw)
+    out[use] <- vapply(status_raw[use], function(v) {
+        r <- if (v %in% names(nonstart_map)) nonstart_map[[v]] else NA_character_
+        if (!is.null(r) && !is.na(r) && nzchar(r)) as.character(r) else "Other"
+    }, character(1), USE.NAMES = FALSE)
+    out
+}
+
+#' Respondent-level table behind the issue_tracking.xlsx "Completion" sheet.
+#' With a roster (`target_ds`): the roster copied verbatim plus `submitted`,
+#' `completed` (both 0/1) and `reason_no_completion`; without one: one row per
+#' unique respondent ID in `ds`. Matches on roles$completion_roster_key_col
+#' (roster side) and roles$entity_id[[1]] (survey side), as strings - the same
+#' join M1 uses. A respondent is completed if ANY of their rows passes the
+#' completion flag. `existing` is the prior Completion sheet; any column in it
+#' that this function doesn't itself produce (a hand-added one) is carried
+#' over by matching key. Returns a data.frame, or NULL when no respondent ID
+#' column can be resolved.
+build_completion_table <- function(ds, roles, modules, target_ds = NULL, existing = NULL) {
+    entity_col <- roles$entity_id[[1]] %||% NA_character_
+    if (is.na(entity_col) || !entity_col %in% names(ds)) return(NULL)
+    new_cols <- c("submitted", "completed", "reason_no_completion")
+    survey_key <- as.character(ds[[entity_col]])
+
+    attr(ds, "hfc_target_ds") <- target_ds
+    cf <- compute_completion_flag(ds, roles, modules)
+    sig <- cf$sig
+    row_reason <- compute_noncompletion_reason_vec(ds, modules, cf)
+
+    # Row-level "complete" aligned to ds. Under "roster" the flag is aligned
+    # to target_ds instead, and every surveyed row counts as complete.
+    row_complete <- if (identical(sig, "roster") || length(cf$complete_flag) != nrow(ds)) {
+        rep(TRUE, nrow(ds))
+    } else cf$complete_flag %in% TRUE
+
+    use_roster <- !is.null(target_ds) && nrow(target_ds) > 0 &&
+        (roles$completion_roster_key_col %||% entity_col) %in% names(target_ds)
+    if (use_roster) {
+        key_col <- roles$completion_roster_key_col %||% entity_col
+        out <- as.data.frame(target_ds, stringsAsFactors = FALSE, check.names = FALSE)
+        out <- out[, setdiff(names(out), new_cols), drop = FALSE]
+        key <- as.character(target_ds[[key_col]])
+    } else {
+        key <- unique(survey_key[!is.na(survey_key) & nzchar(survey_key)])
+        out <- data.frame(key, stringsAsFactors = FALSE, check.names = FALSE)
+        names(out) <- entity_col
+    }
+
+    submitted <- !is.na(key) & nzchar(key) & key %in% survey_key
+    completed_keys <- unique(survey_key[row_complete & !is.na(survey_key)])
+    completed <- submitted & key %in% completed_keys
+
+    # First non-NA gate reason among a respondent's rows, if any.
+    reason_by_key <- tapply(row_reason, survey_key, function(r) {
+        r <- r[!is.na(r)]; if (length(r)) r[[1]] else NA_character_
+    })
+    reason <- rep("", length(key))
+    sub_idx <- which(submitted & !completed)
+    if (length(sub_idx)) {
+        r <- as.character(reason_by_key[key[sub_idx]])
+        r[is.na(r) | !nzchar(r)] <- "Incomplete"
+        reason[sub_idx] <- r
+    }
+    not_sub <- which(!submitted)
+    if (length(not_sub)) {
+        ns <- if (use_roster) compute_nonstart_reason_vec(ds, roles, modules, target_ds)[not_sub] else rep(NA_character_, length(not_sub))
+        ns[is.na(ns) | !nzchar(ns)] <- "Not submitted"
+        reason[not_sub] <- ns
+    }
+
+    out$submitted <- as.integer(submitted)
+    out$completed <- as.integer(completed)
+    out$reason_no_completion <- reason
+
+    # Carry over hand-added columns from the prior sheet, matched by key.
+    if (!is.null(existing) && is.data.frame(existing) && nrow(existing)) {
+        key_name <- if (use_roster) (roles$completion_roster_key_col %||% entity_col) else entity_col
+        extra <- setdiff(names(existing), c(names(out), new_cols))
+        if (length(extra) && key_name %in% names(existing)) {
+        idx <- match(key, as.character(existing[[key_name]]))
+        for (cn in extra) out[[cn]] <- as.character(existing[[cn]])[idx]
+        }
+    }
+    out
+}
+
 check_m1 <- function(ds, roles, modules) {
     cf <- compute_completion_flag(ds, roles, modules)
     sig <- cf$sig; target_ds <- cf$target_ds; group_source_ds <- cf$group_source_ds
@@ -434,31 +582,7 @@ check_m1 <- function(ds, roles, modules) {
     # an unanticipated raw value, or a config from before this field existed.
     by_reason_df <- tibble()
     if (identical(sig, "gating") && length(gate_cols)) {
-        gate_labels <- modules$M1$gate_labels %||% list()
-        gate_fail_reasons <- modules$M1$gate_fail_reasons %||% list()
-        reason_vec <- rep(NA_character_, nrow(ds))
-        for (gc in gate_cols) {
-        pv <- gate_pass[[gc]] %||% NA_character_
-        if (is.na(pv)) next
-        failed <- !gate_pass_fn(gc)
-        assign_idx <- is.na(reason_vec) & failed
-        if (any(assign_idx)) {
-            decoded <- decode_labelled_chr(ds[[gc]])
-            raw <- as.character(ds[[gc]])
-            gc_label <- gate_labels[[gc]] %||% gc
-            gc_reasons <- gate_fail_reasons[[gc]] %||% list()
-            v_dec <- decoded[assign_idx]
-            v_raw <- raw[assign_idx]
-            reason_vec[assign_idx] <- vapply(seq_along(v_dec), function(i) {
-            r <- if (!is.na(v_dec[i]) && v_dec[i] %in% names(gc_reasons)) {
-                gc_reasons[[v_dec[i]]]
-            } else if (!is.na(v_raw[i]) && v_raw[i] %in% names(gc_reasons)) {
-                gc_reasons[[v_raw[i]]]
-            } else NA_character_
-            if (!is.na(r) && nzchar(r)) r else gc_label
-            }, character(1))
-        }
-        }
+        reason_vec <- compute_noncompletion_reason_vec(ds, modules, cf)
         reasons_present <- reason_vec[!complete_flag & !is.na(reason_vec)]
         if (length(reasons_present)) {
         by_reason_df <- tibble(reason = reasons_present) %>% count(reason, sort = TRUE, name = "count")
@@ -469,29 +593,14 @@ check_m1 <- function(ds, roles, modules) {
     # a gate could have failed on. Maps the roster's own status column
     # (beyond simple Primary/Replacement) onto a reason, so every non-
     # completed submission ends up with exactly one reason row.
-    nonstart_col <- modules$M1$nonstart_status_col %||% NA_character_
-    if (!is.null(target_ds) && !is.na(nonstart_col) && nonstart_col %in% names(target_ds) &&
-        !is.na(roles$entity_id[[1]] %||% NA_character_) && roles$entity_id[[1]] %in% names(ds)) {
-        nonstart_map <- modules$M1$nonstart_reason_map %||% list()
-        entity_col <- roles$entity_id[[1]]
-        roster_key_col <- roles$completion_roster_key_col %||% entity_col
-        if (roster_key_col %in% names(target_ds)) {
-        attempted_keys <- unique(as.character(ds[[entity_col]]))
-        never_attempted <- !as.character(target_ds[[roster_key_col]]) %in% attempted_keys
-        status_raw <- as.character(target_ds[[nonstart_col]])[never_attempted]
-        status_raw <- status_raw[!is.na(status_raw) & nzchar(status_raw)]
-        if (length(status_raw)) {
-            nonstart_reasons <- vapply(status_raw, function(v) {
-            r <- if (v %in% names(nonstart_map)) nonstart_map[[v]] else NA_character_
-            if (!is.null(r) && !is.na(r) && nzchar(r)) r else "Other"
-            }, character(1), USE.NAMES = FALSE)
-            by_reason_df <- bind_rows(
-            by_reason_df,
-            tibble(reason = nonstart_reasons) %>% count(reason, sort = TRUE, name = "count")
-            ) %>%
-            group_by(reason) %>% summarise(count = sum(count), .groups = "drop") %>% arrange(desc(count))
-        }
-        }
+    nonstart_reasons <- compute_nonstart_reason_vec(ds, roles, modules, target_ds)
+    nonstart_reasons <- nonstart_reasons[!is.na(nonstart_reasons)]
+    if (length(nonstart_reasons)) {
+        by_reason_df <- bind_rows(
+        by_reason_df,
+        tibble(reason = nonstart_reasons) %>% count(reason, sort = TRUE, name = "count")
+        ) %>%
+        group_by(reason) %>% summarise(count = sum(count), .groups = "drop") %>% arrange(desc(count))
     }
     stats$by_reason <- by_reason_df
 

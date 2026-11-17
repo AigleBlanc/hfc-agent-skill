@@ -47,7 +47,9 @@ if (!isTRUE(v$ok)) {
   stop("merge_resolutions.R: verification failed — merged_issue_resolutions.xlsx NOT written. See the verification output above.")
 }
 
-write_named_tracking_file(ctx, merged, "merged_issue_resolutions.xlsx", entity_label = entity_label, group_label = group_label)
+# Carry the live file's Completion sheet through unchanged.
+write_named_tracking_file(ctx, merged, "merged_issue_resolutions.xlsx", entity_label = entity_label, group_label = group_label,
+                          completion = read_completion_sheet(ctx, ctx$dest_name))
 
 n_changed <- sum(as.character(current$finding_id) %in% touched_ids &
                  current$finding_id %in% clone$finding_id &

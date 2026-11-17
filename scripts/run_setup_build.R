@@ -145,7 +145,18 @@ entity_label <- roles$entity_label %||% NA_character_
 group_label <- roles$group_label %||% NA_character_
 ctx <- fetch_issue_tracking(skill_dir = skill, entity_label = entity_label, group_label = group_label)
 fb_new <- findings_to_issue_tracking(findings, roles = roles)
-write_tracking_snapshot(ctx, fb_new, entity_label = entity_label, group_label = group_label)
+
+# Respondent-level Completion sheet (roster copy + submitted/completed/
+# reason_no_completion), keeping any columns hand-added to the live sheet.
+existing_completion <- read_completion_sheet(ctx, ctx$dest_name)
+completion_tbl <- tryCatch(
+    build_completion_table(ds, roles, modules, target_ds = target_ds, existing = existing_completion),
+    error = function(e) { message("Completion sheet could not be rebuilt: ", e$message); NULL }
+)
+# If it couldn't be built, keep whatever the live file already has rather
+# than letting the commit drop the sheet.
+if (is.null(completion_tbl)) completion_tbl <- existing_completion
+write_tracking_snapshot(ctx, fb_new, entity_label = entity_label, group_label = group_label, completion = completion_tbl)
 
 if (!is.null(ctx$tbl)) {
     # Drop any finding already marked Resolved (or no longer tracked) from
@@ -154,7 +165,7 @@ if (!is.null(ctx$tbl)) {
     message("Findings after dropping Resolved/untracked: ", nrow(findings), " of ", nrow(res$findings))
 }
 merged <- merge_preserve_existing(ctx$tbl, fb_new)
-write_named_tracking_file(ctx, merged, "merged_issue_tracking.xlsx", entity_label = entity_label, group_label = group_label)
+write_named_tracking_file(ctx, merged, "merged_issue_tracking.xlsx", entity_label = entity_label, group_label = group_label, completion = completion_tbl)
 merge_pending <- TRUE
 
 # Mirror config.json into hfc/ for the record.
