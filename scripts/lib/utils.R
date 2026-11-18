@@ -13,6 +13,32 @@ safe_num <- function(x) {
     suppressWarnings(as.numeric(x))
 }
 
+# Numeric codes that mean "missing / don't know / refused" rather than a real
+# measurement. Applied by default to every numeric statistic (M6 outliers, M11,
+# M12 covariates, M4 durations, M8, M7) so they are never flagged or averaged.
+DEFAULT_NA_CODES <- c(-99, -999, -9999, 999, 9999, 99999)
+
+# The NA codes in force for one variable: the defaults, plus whatever the user
+# added in `modules$M7$sentinel_codes` (a plain vector shared by every
+# variable, or a per-variable named list). The user's codes ADD to the defaults;
+# a default cannot be removed. Returned as numeric.
+na_codes_for <- function(modules, vc = NULL) {
+    user <- modules$M7$sentinel_codes %||% NULL
+    extra <- if (is.null(user)) numeric() else if (is.list(user) && !is.null(names(user))) {
+        if (!is.null(vc) && !is.null(user[[vc]])) user[[vc]] else numeric()
+    } else user
+    extra <- suppressWarnings(as.numeric(unlist(extra)))
+    unique(c(DEFAULT_NA_CODES, extra[is.finite(extra)]))
+}
+
+# safe_num() with every value in `codes` (default: the default NA codes) set
+# to NA.
+clean_num <- function(x, codes = DEFAULT_NA_CODES) {
+    v <- safe_num(x)
+    v[!is.na(v) & v %in% codes] <- NA_real_
+    v
+}
+
 # Shared rounding for every measured value shown in the report — 1 decimal.
 round1 <- function(x) round(suppressWarnings(as.numeric(x)), 1)
 

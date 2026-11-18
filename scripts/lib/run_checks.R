@@ -1061,7 +1061,7 @@ check_m4 <- function(ds, roles, modules) {
 
   if (!is.na(dc) && dc %in% names(ds)) {
     # Duration is always in seconds; converted to minutes once here.
-    dur <- safe_num(ds[[dc]]) / 60
+    dur <- clean_num(ds[[dc]], na_codes_for(modules, dc)) / 60
     ok <- is.finite(dur)
     stats_overall <- tibble(
       dates = date_range_label(ds, roles),
@@ -1078,7 +1078,7 @@ check_m4 <- function(ds, roles, modules) {
     stats_section_precomputed <- if (length(section_dur_cols)) {
       bind_rows(lapply(section_dur_cols, function(cn) {
         label <- section_map[[cn]] %||% var_label(cn, roles)
-        stat_row(label, safe_num(ds[[cn]]) / 60)
+        stat_row(label, clean_num(ds[[cn]], na_codes_for(modules, cn)) / 60)
       }))
     } else tibble()
     stats_by_enum <- if (isTRUE(modules$M4$by_enum %||% TRUE) && !is.na(roles$enum) && roles$enum %in% names(ds)) {
@@ -1200,7 +1200,7 @@ check_m6 <- function(ds, roles, modules) {
   fixed_thresholds <- modules$M6$fixed_thresholds %||% list()
   parts <- list()
   for (vc in vars) {
-    v <- safe_num(ds[[vc]])
+    v <- clean_num(ds[[vc]], na_codes_for(modules, vc))
     ok <- is.finite(v)
     if (sum(ok) < 30) next
     use_fixed <- identical(outlier_mode, "fixed") && !is.null(fixed_thresholds[[vc]])
@@ -1244,8 +1244,6 @@ check_m6 <- function(ds, roles, modules) {
 check_m7 <- function(ds, roles, modules) {
   vars <- modules$M7$vars %||% character()
   vars <- vars[!is.na(vars) & vars %in% names(ds)]
-  sentinel <- modules$M7$sentinel_codes %||% character()
-  sentinel_is_map <- is.list(sentinel) && !is.null(names(sentinel))
   # `has_enum` gates only the opt-in advanced_enum_flag finding - no
   # descriptive by-enumerator stats table exists.
   has_enum <- !is.na(roles$enum) && roles$enum %in% names(ds)
@@ -1260,7 +1258,7 @@ check_m7 <- function(ds, roles, modules) {
   enum_lookup <- if (has_enum) enum_name_lookup(ds, roles) else NULL
   by_var <- list(); enum_flags <- list()
   for (vc in vars) {
-    codes <- if (sentinel_is_map) sentinel[[vc]] %||% character() else sentinel
+    codes <- na_codes_for(modules, vc)
     x <- ds[[vc]]
     miss <- is.na(x) | as.character(x) %in% as.character(codes)
 
@@ -1394,6 +1392,8 @@ check_m8 <- function(ds, roles, modules) {
     flagged_rows <- list()
     for (vc in ordinal_vars) {
       v <- decode_labelled_chr(ds[[vc]])
+      # NA codes (default -99, 9999, ...) are not a real answer: dropped from the share.
+      v[v %in% as.character(na_codes_for(modules, vc))] <- NA_character_
       ok <- !is.na(v) & nzchar(v) & !is.na(enum_vec) & nzchar(enum_vec) & !is.na(date_vec)
       if (!any(ok)) next
       tab <- tibble(enum = enum_vec[ok], date = date_vec[ok], v = v[ok]) %>%
@@ -1468,7 +1468,7 @@ check_m11 <- function(ds, roles, modules) {
 
   mk_table <- function(sub_ds) {
     rows <- lapply(vars, function(vc) {
-      v <- safe_num(sub_ds[[vc]])
+      v <- clean_num(sub_ds[[vc]], na_codes_for(modules, vc))
       if (!is.na(duration_col) && identical(vc, duration_col)) v <- v / 60
       ok <- is.finite(v)
       tibble(Variable = var_label(vc, roles), Min = round1(suppressWarnings(min(v[ok]))),

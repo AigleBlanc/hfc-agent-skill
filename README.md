@@ -144,7 +144,7 @@ You don't have to set `Accepted` before the agent will act — it picks up any `
 
 | What | Where |
 |---|---|
-| Condensed report (short update, titled `HFC MM/DD`) | `<Code Output Directory>/hfc/outputs/<MMDD>_HFCs.html`, with a copy in your HFC Output Directory. One page: the daily message (that day's submissions and completions, cumulative completion against the target, non-completion reasons, the enumerator roster and 2 to 5 issues to highlight) followed by the Completion (overall, by enumerator, by date), Duplicates (if any) and Form Version (summary) tables |
+| Condensed report (short update, titled `HFC MM/DD`) | `<Code Output Directory>/hfc/outputs/<MMDD>_HFCs.html`, with a copy in your HFC Output Directory. One page: the daily message (that day's submissions and completions, cumulative completion against the target, non-completion reasons, the enumerator roster and 2 to 5 issues to highlight) followed by the Completion (overall, by enumerator, by date), Duplicates (if any) and Form Version tables (the Completion section explains how Completion is computed; Form Version shows its summary and issues tables only when there are form version issues, otherwise just "No form version issues found!") |
 | Detailed report (full findings) | `<MMDD>_HFCs_detailed.html` in a `detailed/` subfolder of both `hfc/outputs/` and your HFC Output Directory |
 | Product map (first setup) | `<Code Output Directory>/hfc/structure.html` |
 | Saved settings you can hand-edit | `<Code Output Directory>/hfc/config/role_map.yaml` and `modules.yaml` |
@@ -163,6 +163,7 @@ Fourteen modules, M1–M14: Completion, Duplicates, Form Version, Survey Duratio
 
 - **Completion** means whether all *planned* surveys were conducted, not whether a started survey was finished. Every completion table reads Submitted, Submitted (Primary Sample), Completed, Completion; where a roster (or a primary/secondary column) marks the primary sample, Completion = Completed (primary or replacement) ÷ Submitted (Primary Sample), so it can pass 100% when replacements completed for primaries that never submitted. Without a primary sample the second column is dropped and Completion = Completed ÷ Submitted. Anything the roster doesn't say (no primary/replacement column, IDs missing from it) is asked, never assumed. Each respondent's result also lands in the **Completion** sheet of `issue_tracking.xlsx`.
 - **Form Version** compares each submission's form version with the version expected for its date. The expected version comes from the date windows in `modules.yaml`; where none are set, it is each day's most-used version (and a version's expected dates are the first to last day it led).
+- **Missing-value codes** `-99, -999, -9999, 999, 9999, 99999` are treated as missing in every numeric check and statistic, so they are never flagged as outliers. Tell the agent (or add to `M7.sentinel_codes` in `modules.yaml`) any extra codes your survey uses; they are added to these.
 - **GPS Map** and **Missingness** are descriptive only by default: they show data but don't flag anything.
 - **Field Request** is empty unless you ask for a custom check in the Instructions step.
 

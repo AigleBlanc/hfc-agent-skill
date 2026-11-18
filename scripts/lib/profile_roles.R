@@ -306,6 +306,8 @@ default_modules <- function(roles) {
         on = TRUE,
         full_data = FALSE,
         vars = m7_vars,
+        # EXTRA NA codes the user (or agent) adds; the defaults -99, -999,
+        # -9999, 999, 9999, 99999 always apply on top (see DEFAULT_NA_CODES).
         sentinel_codes = character(),
         # A variable only earns a row in the OVERALL table past this
         # population-missingness threshold.

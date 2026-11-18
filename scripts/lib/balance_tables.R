@@ -49,7 +49,7 @@ bt_completed_interviews_tbl <- function(ds, cf, group_col, group_label) {
 
 #' Table 2: per-covariate Mean(SD)/N per group among completed interviews,
 #' plus a Welch ANOVA p-value.
-bt_balance_tbl <- function(ds, roles, cf, group_col, covariates) {
+bt_balance_tbl <- function(ds, roles, cf, group_col, covariates, modules = NULL) {
     if (is.null(group_col) || is.na(group_col) || !group_col %in% names(ds) || !length(covariates)) return(NULL)
     ds_complete_flag <- if (identical(cf$sig, "roster")) rep(TRUE, nrow(ds)) else cf$complete_flag
     ds_c <- ds[ds_complete_flag %in% TRUE, , drop = FALSE]
@@ -62,7 +62,7 @@ bt_balance_tbl <- function(ds, roles, cf, group_col, covariates) {
     rows <- list()
     for (cv in covariates) {
         if (!cv %in% names(ds_c)) next
-        v <- safe_num(ds_c[[cv]])
+        v <- clean_num(ds_c[[cv]], na_codes_for(modules, cv))
         ok <- is.finite(v)
         if (sum(ok) < 2) next
         row <- list(Covariate = var_label(cv, roles))
@@ -243,7 +243,7 @@ render_balance_tables_body <- function(ds, roles, modules, findings = NULL, targ
         slug <- gsub("[^A-Za-z0-9]+", "-", tolower(group_label))
 
         tbl1 <- bt_completed_interviews_tbl(ds, cf, group_col, group_label)
-        tbl2 <- bt_balance_tbl(ds, roles, cf, group_col, g$covariates %||% character())
+        tbl2 <- bt_balance_tbl(ds, roles, cf, group_col, g$covariates %||% character(), modules = modules)
         tbl3 <- bt_completion_regression_tbl(ds, roles, cf, group_col, group_label, g$other_group_col %||% NA_character_)
         tbl4 <- bt_replacements_tbl(ds, roles, modules, target_ds, cf, group_col, group_label,
                                     g$roster_group_col %||% NA_character_, g$roster_value_map %||% NULL)

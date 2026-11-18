@@ -82,6 +82,8 @@ Confirmed in the Keys & Hours window's Work hours tab, alongside M4: work-hours 
 
 ## M6 — Numeric Outliers
 
+**Default NA codes:** `-99, -999, -9999, 999, 9999, 99999` are treated as missing (never flagged as outliers, never in the mean/SD) for every numeric variable, in M6 and in every other numeric statistic below (M4 durations, M7, M8, M11, M12 covariates). They are `DEFAULT_NA_CODES` in `scripts/lib/utils.R`. Codes the user adds in `modules.yaml`'s `M7.sentinel_codes` (a list, or a per-variable map) or in the Instructions step are **added** to these defaults; a default cannot be removed. `na_codes_for()` / `clean_num()` apply them.
+
 **Default: ON** — up to 10 continuous vars (exclude IDs/codes), two-sided SD rule — **fixed at 3, silent by default**.
 
 Confirmed in the Dates, Variables & GPS window's Variables tab: uses the unified important-variables shortlist directly (no separate module-level variable ask). `modules$M6$outlier_mode` (`"sd"` default, or `"fixed"`) picks between the relative SD rule and a fixed absolute range per variable (`fixed_thresholds[[var]] = list(low=, high=)`, one-sided when either bound is NA) — for a survey where a relative rule doesn't make sense (e.g. a known plausible age/score range independent of what this sample happens to contain). Only proposed/confirmed when the user's own Instructions name specific numeric bounds; otherwise stays silently on `"sd"`.
@@ -90,7 +92,7 @@ Confirmed in the Dates, Variables & GPS window's Variables tab: uses the unified
 
 **Default: ON, descriptive only — never produces findings, on either the question or the enumerator level** (`report_sections.json`'s Missingness Notes). By the unified important-variables shortlist (≤10) PLUS ~20 more agent-picked variables specific to missingness reporting (any type, not just numeric).
 
-Confirmed in the Dates, Variables & GPS window's Sentinel codes tab, alongside the Variables tab: the agent scans the shortlisted variables' value distributions for likely sentinel/missing codes (99, -99, -9999, …), cross-checked against the form's choice labels when available. Its own tab, not folded into Variables — one fact per tab.
+Confirmed in the Dates, Variables & GPS window's Sentinel codes tab, alongside the Variables tab: the six default NA codes (-99, -999, -9999, 999, 9999, 99999) already apply everywhere; the agent scans the shortlisted variables' value distributions for any ADDITIONAL likely sentinel/missing codes (e.g. 888, -88, 99), cross-checked against the form's choice labels when available. Its own tab, not folded into Variables — one fact per tab.
 
 The ~20 extra missingness-specific variables are agent judgment only, made during the same setup pass and written directly to `hfc/config/role_map.yaml`'s `missingness_extra_vars` — **no `AskUserQuestion` confirmation**; an RA who disagrees corrects it only by editing the yaml directly, not in chat.
 
@@ -112,7 +114,7 @@ Ordinal variables: `role_map.yaml`'s `ordinal_vars` — determined in A2 alongsi
 - **Enumerator-level** (`enum_threshold_pct`, default **100%**): evaluated **per enumerator, per day** — an enumerator gave the identical single answer on one question in every one of their surveys that day. Only evaluated on a day with **at least 3** completed surveys for that enumerator (`check_m8()`'s `min_n_per_enum_day`); a day with 2 or fewer is skipped as too few data points to mean anything.
 - **Survey-level** (`survey_threshold_pct`, default **90%**, unchanged): a single submission where ≥ this share of the confirmed ordinal variables share one identical value — unrelated to the enumerator-level check, not day-scoped (it's already at the single-submission granularity).
 
-Both are fully silent fixed defaults — not mentioned in any tab. Still hand-editable in `modules.yaml` directly if a project genuinely needs a different value. Non-substantive sentinel codes are excluded before computing the "same answer" share, same shared list used project-wide.
+Both are fully silent fixed defaults — not mentioned in any tab. Still hand-editable in `modules.yaml` directly if a project genuinely needs a different value. NA codes (the defaults plus any the user added) are excluded before computing the "same answer" share, same shared list used project-wide.
 
 The enumerator-level check produces one finding per flagged (enumerator, day, variable-set) — a real date now (the day being flagged), but still no Entity ID (`mk_aggregate_finding()`, `unit_type = "enumerator"`) since it's not tied to one specific submission. Genuinely different granularity from the survey-level check's per-submission findings, so the two render as separate tables in the HTML report even though both are "M8".
 

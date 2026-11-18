@@ -246,7 +246,7 @@ MODULE_ORDER <- paste0("M", 1:14)
 # "custom_html" (supplies its own body).
 MODULE_META <- list(
     M1 = list(label = "Completion",
-                desc = "Reports submitted and completed surveys overall, and by group, enumerator, and date, so gaps in fieldwork show up early. Where the primary sample is known, completion is completed (primary or replacement) divided by primary-sample surveys submitted."),
+                desc = "Reports submitted and completed surveys overall, and by group, enumerator, and date, so gaps in fieldwork show up early."),
     M2 = list(label = "Duplicates",
                 desc = "Flags submissions that share the same unique ID or survey key, one row per duplicate group rather than one row per individual duplicate submission."),
     M3 = list(label = "Form Version",
@@ -934,10 +934,24 @@ m1_col_labels <- function(col_labels, roles, modules) {
     col_labels
 }
 
+# The one-sentence statement of how Completion is computed, shown under the
+# Completion heading in both reports. Which formula applies depends on whether
+# the Overall table has a "Submitted (Primary Sample)" column (n_primary), i.e.
+# whether a primary sample is known.
+completion_explanation <- function(m1_overall) {
+    if (!is.null(m1_overall) && "n_primary" %in% names(m1_overall)) {
+        "Completion = the number of completed surveys (primary or replacement) divided by the number of primary samples attempted (submitted). It can exceed 100% when replacements completed for primary respondents who never submitted."
+    } else {
+        "Completion = the number of completed surveys divided by the number of surveys submitted (no primary sample is defined for this project)."
+    }
+}
+
 # The three sections the condensed report carries under its message, as plain
-# cards (no ids, no nav links): Completion (overall / by enumerator / by date
-# only), Duplicates (the issues table; omitted when there are none) and Form
-# Version (the version summary only, no issues table). `findings` must already
+# cards (no ids, no nav links): Completion (the formula sentence, then overall /
+# by enumerator / by date only), Duplicates (the issues table; omitted when
+# there are none) and Form Version (the version summary AND the issues table
+# when form version issues exist, otherwise just "No form version issues
+# found!"). `findings` must already
 # carry the *_display columns prepared in write_html_report().
 render_condensed_sections <- function(findings, stats, modules, roles, findings_col_labels) {
     card <- function(mod, body) {
@@ -948,7 +962,8 @@ render_condensed_sections <- function(findings, stats, modules, roles, findings_
 
     m1 <- if (on("M1") && !is.null(stats$M1)) {
         keep <- stats$M1[intersect(c("overall", "by_enumerator", "by_date"), names(stats$M1))]
-        render_stats_block(keep, "m1", col_labels = m1_col_labels(STATS_COL_LABELS[["M1"]], roles, modules))
+        paste0("<p class='mod-desc'>", completion_explanation(stats$M1$overall), "</p>",
+               render_stats_block(keep, "m1", col_labels = m1_col_labels(STATS_COL_LABELS[["M1"]], roles, modules)))
     } else ""
 
     m2 <- if (on("M2") && !is.null(findings) && nrow(findings) && "check_module" %in% names(findings)) {
@@ -957,7 +972,14 @@ render_condensed_sections <- function(findings, stats, modules, roles, findings_
     } else ""
 
     m3 <- if (on("M3") && !is.null(stats$M3)) {
-        render_stats_block(stats$M3, "m3", col_labels = STATS_COL_LABELS[["M3"]])
+        m3_findings <- if (!is.null(findings) && nrow(findings) && "check_module" %in% names(findings)) {
+            findings[findings$check_module == "M3", , drop = FALSE]
+        } else NULL
+        if (!is.null(m3_findings) && nrow(m3_findings)) {
+            findings_labels <- findings_col_labels
+            paste0(render_stats_block(stats$M3, "m3", col_labels = STATS_COL_LABELS[["M3"]]),
+                   render_findings_tables_titled(m3_findings, "tbl-cond-m3", findings_labels, MODULE_META[["M3"]]))
+        } else "<p class='no-issues'>No form version issues found!</p>"
     } else ""
 
     paste0(card("M1", m1), card("M2", m2), card("M3", m3))
@@ -993,11 +1015,11 @@ condensed_report_html <- function(message_txt, report_title = report_title_label
 "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'/>",
 "<meta name='viewport' content='width=device-width, initial-scale=1'/>",
 "<title>", report_title, "</title><style>
-:root{--bg:#f4efe6;--ink:#1c1914;--muted:#5c564c;--card:#fffdf8;--line:#ddd4c4;--accent:#2a6f5e}
+:root{--bg:#f4efe6;--ink:#1c1914;--muted:#5c564c;--card:#fffdf8;--line:#ddd4c4;--accent:#2a6f5e;--page-w:1000px;--page-pad:1.25rem}
 *{box-sizing:border-box}
 body{margin:0;font-family:'Source Serif 4',Georgia,serif;background:var(--bg);color:var(--ink);line-height:1.6;font-size:1.05rem}
-header.top{max-width:760px;margin:0 auto;padding:1.4rem 1.25rem 0;font-family:'IBM Plex Sans',system-ui,sans-serif;font-weight:600;font-size:1.05rem;letter-spacing:.02em}
-main{max-width:1000px;margin:0 auto;padding:1.2rem 1.25rem 3rem}
+header.top{max-width:var(--page-w);margin:0 auto;padding:1.4rem var(--page-pad) 0;font-family:'IBM Plex Sans',system-ui,sans-serif;font-weight:600;font-size:1.05rem;letter-spacing:.02em}
+main{max-width:var(--page-w);margin:0 auto;padding:1.2rem var(--page-pad) 3rem}
 .message{max-width:760px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:1.6rem 1.9rem}
 .message p{margin:0 0 1.5rem}
 .message p.label{margin:0 0 .5rem;font-family:'IBM Plex Sans',system-ui,sans-serif}
@@ -1191,6 +1213,9 @@ write_html_report <- function(findings, code_output_dir, project_id, open = FALS
             desc_override <- module_notes$overrides[[mod]]
             desc_text <- if (!is.null(desc_override) && nzchar(desc_override)) desc_override else module_desc(mod, modules)
             desc_html <- if (nzchar(desc_text)) paste0("<p class='mod-desc'>", esc(desc_text), "</p>") else ""
+            if (identical(mod, "M1")) {
+                desc_html <- paste0(desc_html, "<p class='mod-desc'>", esc(completion_explanation(stats$M1$overall)), "</p>")
+            }
             custom_html <- ""
             if (identical(mod, "M9") && length(module_notes$custom)) {
             items <- vapply(names(module_notes$custom), function(nm) {
@@ -1274,7 +1299,7 @@ write_html_report <- function(findings, code_output_dir, project_id, open = FALS
         if (!is.null(ds) && !is.na(dc) && dc %in% names(ds) && !is.na(roles$start) && roles$start %in% names(ds)) {
         day_d <- suppressWarnings(as.Date(as.character(ds[[roles$start]])))
         day_rows <- ds[!is.na(day_d) & as.character(day_d) == last_date, , drop = FALSE]
-        dur_day <- safe_num(day_rows[[dc]]) / 60
+        dur_day <- clean_num(day_rows[[dc]], na_codes_for(modules, dc)) / 60
         ok_day <- is.finite(dur_day)
         if (any(ok_day)) {
             lastday_duration_html <- render_stats_block(
