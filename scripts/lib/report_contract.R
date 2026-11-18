@@ -1,5 +1,7 @@
-# Checks a built HTML report against report_sections.json — a quality
-# check, doesn't block the build.
+# Checks a built DETAILED HTML report (detailed/<MMDD>_HFCs_detailed.html)
+# against report_sections.json — a quality check, doesn't block the build.
+# The condensed parent report is not validated (it holds only the message and
+# three trimmed sections).
 
 suppressPackageStartupMessages({
     if (!requireNamespace("xml2", quietly = TRUE)) {
@@ -120,12 +122,19 @@ validate_report_contract <- function(html_path, report_sections_path, modules_pr
         }
     }
 
-    # M1's BY GROUP table has a "Progress" column under roster mode.
-    if (!is.null(modules) && identical(modules$M1$completion_signal, "roster") && has_id("mod-m1")) {
+    # M1's tables always carry Submitted / Completed / Completion headers, and
+    # "Submitted (Primary Sample)" whenever a primary sample is known (a roster,
+    # or a primary/secondary column).
+    if (!is.null(modules) && has_id("mod-m1")) {
         node <- xml2::xml_find_first(doc, "//*[@id='mod-m1']")
         th_texts <- trimws(xml2::xml_text(xml2::xml_find_all(node, ".//th")))
-        if (!"Progress" %in% th_texts) {
-        warnings <- c(warnings, "M1 Completion: roster completion_signal is on, expected a 'Progress' column header, not found.")
+        for (h in c("Submitted", "Completed", "Completion")) {
+        if (!h %in% th_texts) warnings <- c(warnings, sprintf("M1 Completion: expected a '%s' column header, not found.", h))
+        }
+        primary_known <- identical(modules$M1$completion_signal, "roster") ||
+        !is.na(modules$M1$replacement_status_col %||% NA_character_)
+        if (primary_known && !"Submitted (Primary Sample)" %in% th_texts) {
+        warnings <- c(warnings, "M1 Completion: a primary sample is known, expected a 'Submitted (Primary Sample)' column header, not found.")
         }
     }
 

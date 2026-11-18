@@ -246,7 +246,7 @@ MODULE_ORDER <- paste0("M", 1:14)
 # "custom_html" (supplies its own body).
 MODULE_META <- list(
     M1 = list(label = "Completion",
-                desc = "Reports how many submissions are complete overall, and by group, enumerator, and date, so gaps in fieldwork show up early."),
+                desc = "Reports submitted and completed surveys overall, and by group, enumerator, and date, so gaps in fieldwork show up early. Where the primary sample is known, completion is completed (primary or replacement) divided by primary-sample surveys submitted."),
     M2 = list(label = "Duplicates",
                 desc = "Flags submissions that share the same unique ID or survey key, one row per duplicate group rather than one row per individual duplicate submission."),
     M3 = list(label = "Form Version",
@@ -469,11 +469,14 @@ format_pct_cols <- function(df) {
 # Column header labels for render_stats_block()'s tables, keyed by module
 # (the same column name means different things in different modules).
 STATS_COL_LABELS <- list(
-    M1 = c(n = "Surveys Submitted", n_complete = "Completed", pct_complete = "Completion",
+    # Fixed Completion structure: Submitted, Submitted (Primary Sample) (only
+    # when a primary sample is known), Completed, Completion (= Completed /
+    # Submitted (Primary Sample), or / Submitted without a primary sample).
+    M1 = c(n = "Submitted", n_primary = "Submitted (Primary Sample)", n_complete = "Completed",
+            pct_complete = "Completion",
             group = "Group", group_var = "Variable", value = "Value",
             enumerator = "Enumerator", date = "Date", reason = "Reason", count = "Count",
-            dates = "Dates", primary_sample_completed = "Primary Sample Completed",
-            primary_completed = "Primary Completed", target_n = "Target N", progress = "Progress"),
+            dates = "Dates"),
     M3 = c(version = "Version", n = "N", date_min = "First seen", date_max = "Last seen",
             date_start = "Window start", date_end = "Window end", expected_dates = "Expected Dates"),
     M4 = c(dates = "Dates", date = "Date", level = "Section", n = "N", mean = "Mean", median = "Median", sd = "SD",
@@ -876,8 +879,10 @@ format_summary_date <- function(x) {
 }
 
 # Warns (never errors) when a summary message uses a relative day
-# ("today"), a numeric date, or doesn't name the last data-collection day.
-lint_summary_messages <- function(code_output_dir, last_date) {
+# ("today"), a numeric date, or doesn't name the last data-collection day;
+# also checks the condensed message's "Issues to highlight:" list (see
+# lint_condensed_issues()).
+lint_summary_messages <- function(code_output_dir, last_date, findings = NULL) {
     want <- format_summary_date(last_date)
     for (f in c("summary_message.md", "summary_condensed.md")) {
         path <- hfc_path(code_output_dir, "config", f)
@@ -893,10 +898,70 @@ lint_summary_messages <- function(code_output_dir, last_date) {
             message("WARNING: ", f, " never names the last day of data collection (", want, ").")
         }
     }
+    lint_condensed_issues(code_output_dir, last_date, findings)
+    invisible(NULL)
+}
+
+# Warns when the condensed message's "Issues to highlight:" list is missing,
+# too short or too long for the last day's findings (2-5 items when 2+ issues
+# exist; the single issue when only 1 exists; absent only when none exist).
+lint_condensed_issues <- function(code_output_dir, last_date, findings) {
+    path <- hfc_path(code_output_dir, "config", "summary_condensed.md")
+    if (!file.exists(path) || is.null(findings) || is.na(last_date %||% NA_character_)) return(invisible(NULL))
+    n_day <- if (nrow(findings) && "date_display" %in% names(findings)) sum(findings$date_display == last_date, na.rm = TRUE) else 0L
+    lines <- readLines(path, warn = FALSE)
+    at <- grep("^\\s*Issues to highlight:\\s*$", lines)
+    n_items <- if (length(at)) {
+        rest <- lines[(at[[1]] + 1):length(lines)]
+        sum(grepl("^\\s*\\d+\\.\\s", rest))
+    } else 0L
+    if (n_day > 0 && n_items == 0) {
+        message("WARNING: summary_condensed.md has no 'Issues to highlight:' list, but ", n_day, " issue(s) were found on ", format_summary_date(last_date) %||% last_date, ". List 2 to 5.")
+    } else if (n_day >= 2 && n_items < 2) {
+        message("WARNING: summary_condensed.md highlights only ", n_items, " issue(s); list at least 2 (", n_day, " were found on ", format_summary_date(last_date) %||% last_date, ").")
+    } else if (n_items > 5) {
+        message("WARNING: summary_condensed.md highlights ", n_items, " issues; 5 is the cap.")
+    }
     invisible(NULL)
 }
 
 CONDENSED_PLACEHOLDER_TEXT <- "Condensed summary not yet drafted."
+
+# Completion (M1) column labels: the project's own group label for the
+# "Group" column. Shared by the detailed and condensed reports.
+m1_col_labels <- function(col_labels, roles, modules) {
+    col_labels["group"] <- roles$group_label %||% "Group"
+    col_labels
+}
+
+# The three sections the condensed report carries under its message, as plain
+# cards (no ids, no nav links): Completion (overall / by enumerator / by date
+# only), Duplicates (the issues table; omitted when there are none) and Form
+# Version (the version summary only, no issues table). `findings` must already
+# carry the *_display columns prepared in write_html_report().
+render_condensed_sections <- function(findings, stats, modules, roles, findings_col_labels) {
+    card <- function(mod, body) {
+        if (!nzchar(body)) return("")
+        paste0("<section class='card'><h2>", module_label(mod), "</h2>", body, "</section>")
+    }
+    on <- function(mod) is.null(modules) || is.null(modules[[mod]]) || !isFALSE(modules[[mod]]$on)
+
+    m1 <- if (on("M1") && !is.null(stats$M1)) {
+        keep <- stats$M1[intersect(c("overall", "by_enumerator", "by_date"), names(stats$M1))]
+        render_stats_block(keep, "m1", col_labels = m1_col_labels(STATS_COL_LABELS[["M1"]], roles, modules))
+    } else ""
+
+    m2 <- if (on("M2") && !is.null(findings) && nrow(findings) && "check_module" %in% names(findings)) {
+        sub <- findings[findings$check_module == "M2", , drop = FALSE]
+        render_findings_tables_titled(sub, "tbl-cond-m2", findings_col_labels, MODULE_META[["M2"]])
+    } else ""
+
+    m3 <- if (on("M3") && !is.null(stats$M3)) {
+        render_stats_block(stats$M3, "m3", col_labels = STATS_COL_LABELS[["M3"]])
+    } else ""
+
+    paste0(card("M1", m1), card("M2", m2), card("M3", m3))
+}
 
 # Reads the agent-drafted condensed message (hfc/config/summary_condensed.md).
 read_condensed_message <- function(code_output_dir) {
@@ -915,9 +980,10 @@ render_condensed_narrative <- function(txt) {
     gsub("<p>([^<]{1,80}:)</p>", "<p class='label'><strong>\\1</strong></p>", html)
 }
 
-# The condensed report: a bare page holding only the condensed message - no
-# header/nav, About, tables, module sections or footer.
-condensed_report_html <- function(message_txt, report_title = report_title_label()) {
+# The condensed report: one page with the condensed message followed by the
+# few trimmed sections in `sections_html`. The header is just the title - no
+# nav, About, or clickable section titles.
+condensed_report_html <- function(message_txt, report_title = report_title_label(), sections_html = "") {
     body <- if (!is.na(message_txt)) {
         render_condensed_narrative(message_txt)
     } else {
@@ -931,17 +997,22 @@ condensed_report_html <- function(message_txt, report_title = report_title_label
 *{box-sizing:border-box}
 body{margin:0;font-family:'Source Serif 4',Georgia,serif;background:var(--bg);color:var(--ink);line-height:1.6;font-size:1.05rem}
 header.top{max-width:760px;margin:0 auto;padding:1.4rem 1.25rem 0;font-family:'IBM Plex Sans',system-ui,sans-serif;font-weight:600;font-size:1.05rem;letter-spacing:.02em}
-main{max-width:760px;margin:0 auto;padding:1.2rem 1.25rem 3rem}
-.message{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:1.6rem 1.9rem}
+main{max-width:1000px;margin:0 auto;padding:1.2rem 1.25rem 3rem}
+.message{max-width:760px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:1.6rem 1.9rem}
 .message p{margin:0 0 1.5rem}
 .message p.label{margin:0 0 .5rem;font-family:'IBM Plex Sans',system-ui,sans-serif}
 .message ul,.message ol{margin:0 0 1.5rem;padding-left:1.4rem}
 .message li{margin:.4rem 0}
 .message > :last-child{margin-bottom:0}
 .placeholder{color:var(--muted)}
-</style>
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.2rem;margin:1.4rem 0}
+.card h2{font-size:1.15rem;margin:.1rem 0 .6rem}
+.card h3{font-size:1rem;margin:.8rem 0 .3rem}
+.card h4{font-size:.85rem;font-family:'IBM Plex Sans',system-ui,sans-serif;font-weight:600;color:var(--muted);margin:1rem 0 .35rem;text-transform:uppercase;letter-spacing:.03em}
+.meta{color:var(--muted);font-size:.95rem}
+", REPORT_TABLE_CSS, "</style>
 <link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap' rel='stylesheet'/>
-</head><body><header class='top'>", report_title, "</header><main><div class='message'>", body, "</div></main></body></html>")
+</head><body><header class='top'>", report_title, "</header><main><div class='message'>", body, "</div>", sections_html, "</main>", REPORT_TABLE_JS, "</body></html>")
 }
 
 # Path of the detailed copy of a report: a `detailed/` subfolder next to it,
@@ -950,6 +1021,82 @@ main{max-width:760px;margin:0 auto;padding:1.2rem 1.25rem 3rem}
 detailed_report_path <- function(html_path) {
     file.path(dirname(html_path), "detailed", sub("\\.html$", "_detailed.html", basename(html_path)))
 }
+
+# Table styles and behaviour (search box, Show all toggle) shared by the
+# detailed report and the condensed page.
+REPORT_TABLE_CSS <- ".table-toolbar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:0 0 .6rem}
+.table-search{flex:1;min-width:12rem;padding:.45rem .65rem;border:1px solid var(--line);border-radius:6px;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:.9rem}
+.table-count{font-size:.82rem;color:var(--muted);font-family:'IBM Plex Sans',system-ui,sans-serif}
+.table-toggle{padding:.4rem .75rem;border:1px solid var(--accent);border-radius:6px;background:#fff;
+  color:var(--accent);font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:.82rem;font-weight:600;cursor:pointer}
+.table-toggle:hover{background:var(--accent);color:#fff}
+table.searchable{border-collapse:collapse;width:100%;background:#fff;font-size:.9rem}
+table.searchable th,table.searchable td{border:1px solid var(--line);padding:.4rem .55rem;text-align:left;vertical-align:top}
+table.searchable th{background:#ebe3d4;font-family:'IBM Plex Sans',system-ui,sans-serif;font-weight:600}
+tr.row-hidden{display:none}
+tr.match-show{display:table-row}
+"
+REPORT_TABLE_JS <- "<script>
+(function(){
+  function applySearch(input){
+    var id=input.getAttribute('data-table');
+    var table=document.getElementById(id);
+    if(!table) return;
+    var wrap=document.getElementById(id+'-wrap');
+    var btn=document.querySelector('.table-toggle[data-table=\"'+id+'\"]');
+    var expanded=btn && btn.getAttribute('data-expanded')==='true';
+    var showN=wrap?parseInt(wrap.getAttribute('data-collapsed-n')||'10',10):10;
+    var q=(input.value||'').toLowerCase().trim();
+    var rows=[].slice.call(table.tBodies[0].rows);
+    var shown=0;
+    rows.forEach(function(tr,i){
+      var text=tr.textContent.toLowerCase();
+      var visible;
+      if(q){
+        visible=text.indexOf(q)!==-1;
+        tr.classList.toggle('match-show', visible);
+      } else {
+        tr.classList.remove('match-show');
+        visible=expanded || i<showN;
+      }
+      tr.classList.toggle('row-hidden', !visible);
+      if(visible) shown++;
+    });
+    var count=document.querySelector('.table-count[data-for=\"'+id+'\"]');
+    if(count) count.textContent=shown+' of '+rows.length+(q?' matching':' shown');
+  }
+  document.querySelectorAll('.table-search').forEach(function(inp){
+    inp.addEventListener('input', function(){ applySearch(inp); });
+  });
+  document.querySelectorAll('.table-toggle').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id=btn.getAttribute('data-table');
+      var wrap=document.getElementById(id+'-wrap');
+      var expanded=btn.getAttribute('data-expanded')==='true';
+      if(expanded){
+        btn.setAttribute('data-expanded','false');
+        btn.textContent='Show all';
+        if(wrap) wrap.setAttribute('data-collapsed-n','15');
+      } else {
+        btn.setAttribute('data-expanded','true');
+        btn.textContent='Show top 15';
+      }
+      var input=document.querySelector('.table-search[data-table=\"'+id+'\"]');
+      if(input){ input.value=''; applySearch(input); }
+    });
+  });
+  function openDetailsTarget(){
+    var h=location.hash;
+    if(!h) return;
+    var el=document.querySelector(h);
+    if(el && el.tagName==='DETAILS'){ el.open=true; el.scrollIntoView(); }
+  }
+  window.addEventListener('hashchange', openDetailsTarget);
+  window.addEventListener('DOMContentLoaded', openDetailsTarget);
+  openDetailsTarget();
+})();
+</script>"
 
 write_html_report <- function(findings, code_output_dir, project_id, open = FALSE,
                                     roles = NULL, ds = NULL, report_cfg = NULL,
@@ -1058,23 +1205,7 @@ write_html_report <- function(findings, code_output_dir, project_id, open = FALS
             )
             }
             col_labels_mod <- STATS_COL_LABELS[[mod]]
-            if (identical(mod, "M1")) {
-            # What roles$group actually denotes (e.g. "Village") instead of
-            # the generic "Group" - applies to the Overall table's single
-            # "Group" column (always just says "Overall", but still
-            # shouldn't be mislabeled).
-            col_labels_mod["group"] <- roles$group_label %||% "Group"
-            if (identical(modules$M1$completion_signal, "roster")) {
-                # "Progress" (completed / planned target), never "Completion"
-                # (completed / submitted) — the BY GROUP table's denominator
-                # under roster mode is the roster's target count, a
-                # deliberately different ratio from every other completion
-                # table on the page (see report_sections.json's Completion
-                # section Notes).
-                col_labels_mod["n"] <- "Target"
-                col_labels_mod["pct_complete"] <- "Progress"
-            }
-            }
+            if (identical(mod, "M1")) col_labels_mod <- m1_col_labels(col_labels_mod, roles, modules)
             # Per-module override of the findings table's "Issue" column
             # label and the "N issues found" heading noun (report_sections.
             # json: Field Request reads "Info"/"entries" instead) — a
@@ -1246,19 +1377,7 @@ h1{font-size:clamp(1.6rem,3vw,2.1rem);margin:.2rem 0 .35rem}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.7rem 1rem;min-width:5.5rem}
 .stat-n{font-size:1.35rem;font-weight:700;color:var(--accent)}
 .stat-l{font-size:.8rem;color:var(--muted);font-family:'IBM Plex Sans',system-ui,sans-serif}
-.table-toolbar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:0 0 .6rem}
-.table-search{flex:1;min-width:12rem;padding:.45rem .65rem;border:1px solid var(--line);border-radius:6px;
-  font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:.9rem}
-.table-count{font-size:.82rem;color:var(--muted);font-family:'IBM Plex Sans',system-ui,sans-serif}
-.table-toggle{padding:.4rem .75rem;border:1px solid var(--accent);border-radius:6px;background:#fff;
-  color:var(--accent);font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:.82rem;font-weight:600;cursor:pointer}
-.table-toggle:hover{background:var(--accent);color:#fff}
-table.searchable{border-collapse:collapse;width:100%;background:#fff;font-size:.9rem}
-table.searchable th,table.searchable td{border:1px solid var(--line);padding:.4rem .55rem;text-align:left;vertical-align:top}
-table.searchable th{background:#ebe3d4;font-family:'IBM Plex Sans',system-ui,sans-serif;font-weight:600}
-tr.row-hidden{display:none}
-tr.match-show{display:table-row}
-.mod-code{font-size:.68rem;color:var(--muted);font-family:'IBM Plex Sans',system-ui,sans-serif;
+", REPORT_TABLE_CSS, ".mod-code{font-size:.68rem;color:var(--muted);font-family:'IBM Plex Sans',system-ui,sans-serif;
   font-weight:400;margin-left:.35rem;vertical-align:middle}
 h2 .mod-code{font-size:.62rem;border:1px solid var(--line);border-radius:4px;padding:.05rem .35rem}
 .mod-desc{color:var(--muted);font-size:.95rem;margin:.15rem 0 .9rem}
@@ -1301,75 +1420,17 @@ footer.note{margin-top:1.5rem;color:var(--muted);font-size:.9rem}
     "<p class='note footer'>Field edits go in the shared <code>issue_tracking.xlsx</code> in your ",
     "OneDrive-synced folder (see <code>.claude/skills/hfc-agent-skill/config.json</code>)</p>",
     "</main>",
-    "<script>
-(function(){
-  function applySearch(input){
-    var id=input.getAttribute('data-table');
-    var table=document.getElementById(id);
-    if(!table) return;
-    var wrap=document.getElementById(id+'-wrap');
-    var btn=document.querySelector('.table-toggle[data-table=\"'+id+'\"]');
-    var expanded=btn && btn.getAttribute('data-expanded')==='true';
-    var showN=wrap?parseInt(wrap.getAttribute('data-collapsed-n')||'10',10):10;
-    var q=(input.value||'').toLowerCase().trim();
-    var rows=[].slice.call(table.tBodies[0].rows);
-    var shown=0;
-    rows.forEach(function(tr,i){
-      var text=tr.textContent.toLowerCase();
-      var visible;
-      if(q){
-        visible=text.indexOf(q)!==-1;
-        tr.classList.toggle('match-show', visible);
-      } else {
-        tr.classList.remove('match-show');
-        visible=expanded || i<showN;
-      }
-      tr.classList.toggle('row-hidden', !visible);
-      if(visible) shown++;
-    });
-    var count=document.querySelector('.table-count[data-for=\"'+id+'\"]');
-    if(count) count.textContent=shown+' of '+rows.length+(q?' matching':' shown');
-  }
-  document.querySelectorAll('.table-search').forEach(function(inp){
-    inp.addEventListener('input', function(){ applySearch(inp); });
-  });
-  document.querySelectorAll('.table-toggle').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var id=btn.getAttribute('data-table');
-      var wrap=document.getElementById(id+'-wrap');
-      var expanded=btn.getAttribute('data-expanded')==='true';
-      if(expanded){
-        btn.setAttribute('data-expanded','false');
-        btn.textContent='Show all';
-        if(wrap) wrap.setAttribute('data-collapsed-n','15');
-      } else {
-        btn.setAttribute('data-expanded','true');
-        btn.textContent='Show top 15';
-      }
-      var input=document.querySelector('.table-search[data-table=\"'+id+'\"]');
-      if(input){ input.value=''; applySearch(input); }
-    });
-  });
-  function openDetailsTarget(){
-    var h=location.hash;
-    if(!h) return;
-    var el=document.querySelector(h);
-    if(el && el.tagName==='DETAILS'){ el.open=true; el.scrollIntoView(); }
-  }
-  window.addEventListener('hashchange', openDetailsTarget);
-  window.addEventListener('DOMContentLoaded', openDetailsTarget);
-  openDetailsTarget();
-})();
-</script>",
+    REPORT_TABLE_JS,
     "</body></html>"
   )
   # The full report lives in detailed/; the parent file is the condensed
   # report - just the agent-drafted condensed message.
-  lint_summary_messages(code_output_dir, roles$last_date %||% NA_character_)
+  lint_summary_messages(code_output_dir, roles$last_date %||% NA_character_, findings)
   detailed_path <- detailed_report_path(html_path)
   dir.create(dirname(detailed_path), showWarnings = FALSE, recursive = TRUE)
   writeLines(html, detailed_path)
-  writeLines(condensed_report_html(read_condensed_message(code_output_dir), report_title_label()), html_path)
+  sections_html <- render_condensed_sections(findings, stats, modules, roles, findings_col_labels)
+  writeLines(condensed_report_html(read_condensed_message(code_output_dir), report_title_label(), sections_html), html_path)
 
   if (isTRUE(open) && !identical(Sys.getenv("CI"), "true") &&
       !identical(Sys.getenv("HFC_NO_OPEN"), "1")) {

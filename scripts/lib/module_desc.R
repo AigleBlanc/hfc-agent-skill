@@ -41,7 +41,7 @@ m1_desc <- function(modules) {
         " Also reports, by group, what share of the targeted primary sample was replaced, and flags any group where a replacement completed out of order (an earlier-ranked replacement with no row in the data at all)."
     } else ""
     sprintf(
-        "A submission counts %s. Reports these counts overall, by group, enumerator, and date.%s%s",
+        "A submission counts %s. Reports submitted, completed and completion overall, by group, enumerator, and date; where the primary sample is known, completion is completed (primary or replacement) divided by primary-sample surveys submitted.%s%s",
         method, daily_clause, repl_clause
     )
 }

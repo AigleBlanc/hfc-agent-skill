@@ -43,7 +43,7 @@ Worked example of a **survey project** README the agent should aim for after set
 ## Outputs
 
 > - `hfc/structure.html` — product tree (review before Continue)
-> - `hfc/outputs/<MMDD>_HFCs.html` — the short daily update (completion, reasons, enumerators, issues to highlight)
+> - `hfc/outputs/<MMDD>_HFCs.html` — the short daily update (completion, reasons, enumerators, issues to highlight), plus Completion, Duplicates and Form Version tables
 > - `hfc/outputs/detailed/<MMDD>_HFCs_detailed.html` — findings by module (searchable tables, GPS map); also copied to the shared output folder's `detailed/`
 > - OneDrive-synced `issue_tracking.xlsx` (required, no local copy) — the one shared file; agent, RA, and field team all edit it
 > - `.claude/skills/hfc-agent-skill/config.json` — Input Data Directory / Media Folder Directory / HFC Output Directory / Code Output Directory / Main Tracking Filename; skill-level, not per-project

@@ -8,7 +8,7 @@ The canonical field list for `<Code Output Directory>/hfc/config/role_map.yaml`.
 |---|---|---|
 | `data_file_path` | string, required | Absolute path to the chosen microdata file. |
 | `form_file_path` | string or `null` | Absolute path to the survey instrument (XLSForm), if one exists. |
-| `roster_file_path` | string or `null` | Absolute path to a planned/target-sample roster file, if one exists. |
+| `roster_file_path` | string or `null` | Absolute path to the planned sample roster (primary + replacement respondents), if one exists. Found by SKILL.md A1's roster hunt (every candidate, all sheets); `null` only after that hunt and a direct question to the user. |
 | `context_doc_path` | string or `null` | Absolute path to a PAP/project-description document, if one exists — background reading only. |
 | `entity_id` | string, required | Column identifying each respondent/case/household. |
 | `entity_id_sep` | string | Separator for composite IDs. Fixed default `" / "` — only set to override. |

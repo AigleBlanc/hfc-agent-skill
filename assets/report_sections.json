@@ -1,6 +1,6 @@
 {
     "notes": {
-        "Scope": "This spec describes the DETAILED report (detailed/<MMDD>_HFCs_detailed.html) only. The parent <MMDD>_HFCs.html is the condensed report: just the condensed message, none of these sections.",
+        "Scope": "This spec describes the DETAILED report (detailed/<MMDD>_HFCs_detailed.html) only. The parent <MMDD>_HFCs.html is the condensed report: the condensed message plus three trimmed sections on one page, with no nav links or About: Completion (OVERALL, BY ENUMERATOR, BY DATE only), Duplicates (the ISSUES table, only if any) and Form Version (the SUMMARY table only).",
         "Placeholders": "<Respondent> and <Group> stand in for this project's own configured labels (e.g. 'Respondent', 'Subcounty', 'Treatment Arms', etc) - resolved per project, never literal column headers. <Respondent> is ID-only by default (never the real name); <Group>/Enumerator resolve to name-if-available by default.",
         "Table grouping rule": "Every findings table in every section below is a SINGLE table, sorted by date (most recent first) then enumerator - never split or collapsed by enumerator. The ONLY exception is 'All Issues', which additionally breaks out one collapsible sub-table per enumerator below its own single main table. A section whose findings are inherently enumerator-level or group-level aggregates (no per-row date) sorts by whatever identifying column it has instead (e.g. Duplicates sorts by <Respondent>).",
         "Completion note": "Completion (M1) does not include a 'by enumerator, latest day' table.",
@@ -62,45 +62,46 @@
                         "description": "Overall completion statistics",
                         "columns": [
                             "Dates",
-                            "Surveys Submitted",
+                            "Submitted",
+                            "Submitted (Primary Sample)",
                             "Completed",
-                            "Completion",
-                            "Primary Sample Completed"
+                            "Completion"
                         ],
-                        "Notes": "Dates value here is the date range for data collection. Example: 2026-08-12 to 2026-11-02. Completion here is completed / surveys submitted"
+                        "Notes": "Fixed structure shared by every completion table below: Submitted = all submitted surveys; Submitted (Primary Sample) = submitted surveys whose respondent is in the primary sample (from the roster's primary/replacement column, or a primary/secondary column in the survey data); Completed = completed surveys, primary or replacement; Completion = Completed / Submitted (Primary Sample), i.e. the share of attempted primary sample that was completed or successfully replaced. It can exceed 100% when replacements completed for primary respondents that never submitted. Respondents not on the roster are handled as the user chose (kept as non-primary, or excluded). When no primary sample is known the 'Submitted (Primary Sample)' column is omitted and Completion = Completed / Submitted. Dates value here is the date range for data collection. Example: 2026-08-12 to 2026-11-02."
                     },
                     "BY GROUP": {
                         "description": "Completion broken down by each configured grouping variable (e.g. extension arm, village, subcounty) - one section of rows per variable.",
                         "columns": [
                             "Variable",
                             "Value",
-                            "Surveys Submitted",
+                            "Submitted",
+                            "Submitted (Primary Sample)",
                             "Completed",
-                            "Primary Completed",
-                            "Target N",
-                            "Progress"
+                            "Completion"
                         ],
-                        "Notes": "Progress here is Completed / Target N (the roster's planned primary-sample count for that group value), NOT Completed / Surveys Submitted - deliberately called Progress, not Completion, and different from every other completion table on this page, since a group can be under 100% even once every submission in it is complete, if replacements haven't yet filled every primary slot. Primary Completed is, of that group's completed respondents, how many are the roster's original primary-sample respondent rather than a replacement."
+                        "Notes": "Same column definitions as OVERALL, with Variable and Value first. Group values come from the survey rows (or, for a strata column only the roster has, from the roster via the respondent ID)."
                     },
                     "BY ENUMERATOR": {
                         "description": "Completion broken down by enumerator.",
                         "columns": [
                             "Enumerator",
-                            "Surveys Submitted",
+                            "Submitted",
+                            "Submitted (Primary Sample)",
                             "Completed",
                             "Completion"
                         ],
-                        "Notes": "Completion here is Completed / Surveys Submitted."
+                        "Notes": "Same column definitions as OVERALL."
                     },
                     "BY DATE": {
                         "description": "Completion broken down by date, most recent first.",
                         "columns": [
                             "Date",
-                            "Surveys Submitted",
+                            "Submitted",
+                            "Submitted (Primary Sample)",
                             "Completed",
                             "Completion"
                         ],
-                        "Notes": "Completion here is Completed / Surveys Submitted."
+                        "Notes": "Same column definitions as OVERALL."
                     },
                     "NON-COMPLETION REASONS": {
                         "description": "Every distinct reason a non-completed submission stopped, most common first - the first gate failed, or a dedicated non-start reason (rejected/unavailable/rescheduled/other) when the respondent was never reached at all. Every non-completed submission has exactly one row's worth of reason here; none fall through uncounted.",
@@ -154,7 +155,7 @@
         },
         "Form Version": {
             "description": "Tracks which version of the survey instrument was in use on each date, and flags any submission whose recorded version doesn't match the expected window for its date.",
-            "text": "The expected form version for each date is configured as a set of windows (version label + start/end date). A submission recorded under an older version after a newer one went live usually means that device hadn't picked up the latest form push yet - a real, useful thing to catch, not a false positive to suppress by widening the old version's date range.",
+            "text": "The expected form version for each date is configured as a set of windows (version label + start/end date); where no window is configured it is the version most used on that date. A submission recorded under an older version after a newer one went live usually means that device hadn't picked up the latest form push yet - a real, useful thing to catch, not a false positive to suppress by widening the old version's date range.",
             "content": {
                 "tables": {
                     "SUMMARY": {
@@ -166,7 +167,7 @@
                             "Last seen",
                             "Expected Dates"
                         ],
-                        "Notes": "Expected dates here is the range of dates the survey form is expected to be live. Examples 2026-08-12 or 2026-07-17 to 2026-08-01."
+                        "Notes": "Expected dates here is the range of dates the survey form is expected to be live. Examples 2026-08-12 or 2026-07-17 to 2026-08-01. Comes from the configured window; with none, it is the first to last day the version was the most used one (blank if it never was)."
                     },
                     "ISSUES": {
                         "description": "Every submission whose recorded form version doesn't match the expected version for its date.",

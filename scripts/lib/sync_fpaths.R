@@ -1,5 +1,5 @@
 # Reads config.json's four configured directories, and copies the built
-# report into the shared OneDrive folder.
+# reports (condensed + detailed/) into the shared OneDrive folder.
 
 # Falls back to a best guess for the skill's own location.
 skill_dir_guess <- function() {
@@ -70,8 +70,8 @@ ensure_local_folder <- function(path) {
     path
 }
 
-# Copies the built HTML report into the shared OneDrive folder, plus its
-# detailed copy into that folder's detailed/ subfolder.
+# Copies the built (condensed) HTML report into the shared OneDrive folder, plus its
+# detailed report into that folder's detailed/ subfolder.
 copy_report_to_sync_folder <- function(project_id, skill_dir = NULL, html_path) {
     out <- list(status = "skipped", reason = "no_config", dest_path = NA_character_,
                 detailed_dest_path = NA_character_)

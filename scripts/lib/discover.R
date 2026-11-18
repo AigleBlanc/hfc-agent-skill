@@ -18,7 +18,7 @@ discover_project <- function(input_data_dir) {
     )
     tabular_paths <- unique(normalizePath(tabular_paths, mustWork = FALSE))
     bn <- tolower(basename(tabular_paths))
-    tabular_paths <- tabular_paths[!grepl("_resolved\\.|feedback|tracking|ieduplicates|summary", bn)]
+    tabular_paths <- tabular_paths[!grepl("_resolved\\.|feedback|tracking|ieduplicates", bn)]
 
     summarize_tabular <- function(path) {
         ext <- tolower(tools::file_ext(path))

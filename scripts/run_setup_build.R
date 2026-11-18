@@ -1,4 +1,6 @@
-# Setup build — runs every check and produces the report + tracking files.
+# Setup build — runs every check and produces both reports (condensed
+# <MMDD>_HFCs.html + detailed/<MMDD>_HFCs_detailed.html) and the tracking files
+# (Tracking + Completion sheets).
 # Rscript run_setup_build.R [--open] [--sample N]
 # config.json must already be configured. Raw microdata is read in place
 # and never copied.
@@ -133,7 +135,7 @@ if (!is.null(roles$completion_roster_candidate) && !is.na(roles$completion_roste
     if (is.null(target_ds)) message("Could not load roster/target file: ", roles$completion_roster_candidate$path)
 }
 
-format_config_validation(validate_modules_config(modules, roles, ds = ds), stop_on_error = TRUE)
+format_config_validation(validate_modules_config(modules, roles, ds = ds, target_ds = target_ds), stop_on_error = TRUE)
 
 res <- run_checks_and_write_issues(cfg$code_output_dir, ds, roles, modules, skill, target_ds = target_ds)
 findings <- res$findings
@@ -208,6 +210,10 @@ write_product_structure_html(cfg, open = FALSE)
 report_copy <- copy_report_to_sync_folder(project_id, skill_dir = skill, html_path)
 yaml::write_yaml(proj_yaml, hfc_path(cfg$code_output_dir, "project.yaml"))
 
+ps_line <- tryCatch(format_primary_sample_summary(primary_sample_summary(ds, roles, modules, target_ds)), error = function(e) NA_character_)
+if (!is.na(ps_line)) message(ps_line)
+off_line <- tryCatch(format_offroster_summary(ds, roles, modules, target_ds), error = function(e) NA_character_)
+if (!is.na(off_line)) message(off_line)
 message("Done. HTML: ", html_path)
 message("Product root: ", hfc_root(cfg$code_output_dir))
 message("Structure: ", structure_path, " (first_setup=", structure_was_first, ")")

@@ -1,6 +1,6 @@
 # HFC Agent Skill
 
-This skill runs High-Frequency Checks on your survey data, builds an HTML report, and gives you one shared spreadsheet (`issue_tracking.xlsx`) where the field team, the RA, and the AI agent all track and resolve data-quality issues together.
+This skill runs High-Frequency Checks on your survey data, builds a short HTML update and a detailed HTML report, and gives you one shared spreadsheet (`issue_tracking.xlsx`) where the field team, the RA, and the AI agent all track and resolve data-quality issues together.
 
 It's a skill for **Claude Code** (desktop app or the VS Code extension) — not a generic chatbot, and not usable stand-alone. It also needs **R** installed locally, and the **OneDrive desktop app** (required) to keep the shared tracking file in sync. It never touches your original data file: every fix is written to a separate copy (an `Updated Data` folder inside your **HFC Output Directory**), so your raw export always stays exactly as it was collected.
 
@@ -80,7 +80,7 @@ The agent looks for everything it needs inside your **Input Data Directory** —
 | Your survey microdata export | Required, the de-identified data itself. BEWARE that if you share PII, the AI agent will read that too |
 | Survey instrument (SurveyCTO/ODK XLSForm `.xlsx`) | Optional, but lets the agent understand your form's questions, skip logic, and choice lists |
 | Pre-analysis plan / project description | Optional background reading only (PDF, Word, text, or Markdown) — never treated as a data source, never overrides what the actual data shows |
-| Target/planned-sample roster | Optional; only needed if you're tracking primary vs. replacement respondents against a planned sample |
+| Sample roster (primary + replacement list) | **Strongly recommended for RCTs.** It drives primary-vs-replacement tracking and how completion is measured (against the primary sample). Optional otherwise; the agent will ask if it can't find one |
 
 Everything must sit under this one parent directory — that's the only place the agent looks. You don't need to name or label the files: the agent opens the candidates and decides for itself which is the microdata, the form, the roster and the project document, rather than going by filename. Project documents can be PDF, `.docx`, text or Markdown; an old binary `.doc` can't be read, so export it to `.docx` or PDF first.
 
@@ -103,11 +103,11 @@ The agent only stops to ask you a handful of things (at most five during "Run HF
 
 1. **Config check.** The agent confirms `config.json` is fully filled in. If not, it stops and tells you what to fix.
 2. **Reuse prompt (only on a re-run).** If a saved setup from a previous run exists (`hfc/config/role_map.yaml` and `modules.yaml`), you choose: reuse it and rebuild, start fresh, or edit the config files by hand first.
-3. **Data found.** It finds your files, then shows the paths it picked plus the row count, column count and collection dates.
+3. **Data found.** It finds your files (making an extra effort to find your sample roster, opening every sheet of every candidate), then shows the paths it picked plus the row count, column count and collection dates. If it can't find a roster it says so and asks whether one exists.
 4. **Instructions.** You can tell it anything it should know up front: checks to switch off, the country, specific checks you want (e.g. "flag interviews under 10 minutes"). It also writes a blank `hfc/config/modules.yaml` you can pre-fill yourself. Requests that match a standard check adjust that check; anything else becomes a custom Field Request (M9) check.
-5. **Completion signal (only when one is found).** The agent shows how it will tell which planned surveys were completed (a screening/eligibility question, a target roster, or a primary/secondary column) and the reason labels it will use. Once confirmed, the other checks run only on completed surveys.
+5. **Completion signal (only when one is found).** The agent shows how it will tell which planned surveys were completed (a screening/eligibility question, a target roster, or a primary/secondary column) and the reason labels it will use. If your roster has no column that separates primary from replacement respondents, or some submitted IDs are not on the roster, the agent asks you what to do rather than assuming. Once confirmed, the other checks run only on completed surveys.
 6. **Everything else is decided for you.** Respondent ID, enumerator, country and timezone, timing and GPS columns, important variables, thresholds and labels are chosen by the agent and saved to `hfc/config/role_map.yaml` and `modules.yaml`, with no questions. You can review any of it at the end.
-7. **Build.** It runs the checks (M1–M14), writes the detailed report and a short update on the **latest day's** data collection, and drafts your project README. The short update is also posted in chat, ready to share.
+7. **Build.** It runs the checks (M1–M14), writes two HTML reports and drafts your project README. The short one summarizes the **last day** of data collection (named by its date, e.g. "Aug 17", never "today") and is also posted in chat, ready to share; the detailed one lists every finding. Both are titled `HFC MM/DD` (the day they were generated).
 8. **Review & Approve.** Your browser opens `hfc/structure.html` (first setup only) and then the short report `hfc/outputs/<MMDD>_HFCs.html` (the detailed report stays in `detailed/`). You then choose one of three paths:
    - **All good!** The findings are committed to the live shared `issue_tracking.xlsx`.
    - **Walk me through all modules.** The agent replays each setting as a quick confirm-or-correct pass, then rebuilds.
@@ -144,7 +144,7 @@ You don't have to set `Accepted` before the agent will act — it picks up any `
 
 | What | Where |
 |---|---|
-| Condensed report (short update) | `<Code Output Directory>/hfc/outputs/<MMDD>_HFCs.html`, with a copy in your HFC Output Directory. One page holding just the daily message: that day's submissions and completions, cumulative completion against the target, non-completion reasons, the enumerator roster and up to 5 issues to highlight |
+| Condensed report (short update, titled `HFC MM/DD`) | `<Code Output Directory>/hfc/outputs/<MMDD>_HFCs.html`, with a copy in your HFC Output Directory. One page: the daily message (that day's submissions and completions, cumulative completion against the target, non-completion reasons, the enumerator roster and 2 to 5 issues to highlight) followed by the Completion (overall, by enumerator, by date), Duplicates (if any) and Form Version (summary) tables |
 | Detailed report (full findings) | `<MMDD>_HFCs_detailed.html` in a `detailed/` subfolder of both `hfc/outputs/` and your HFC Output Directory |
 | Product map (first setup) | `<Code Output Directory>/hfc/structure.html` |
 | Saved settings you can hand-edit | `<Code Output Directory>/hfc/config/role_map.yaml` and `modules.yaml` |
@@ -161,7 +161,8 @@ Fixed data always lands at `<HFC Output Directory>/Updated Data/<stem>.<ext>` (o
 
 Fourteen modules, M1–M14: Completion, Duplicates, Form Version, Survey Duration, Irregular Timing, Numeric Outliers, Missingness, Straightlining, Field Request, GPS Map, Summary Statistics, Balance Tables, Media files, and Consent/assent/audio flags. A few defaults are worth knowing:
 
-- **Completion** means whether all *planned* surveys were conducted, not whether a started survey was finished.
+- **Completion** means whether all *planned* surveys were conducted, not whether a started survey was finished. Every completion table reads Submitted, Submitted (Primary Sample), Completed, Completion; where a roster (or a primary/secondary column) marks the primary sample, Completion = Completed (primary or replacement) ÷ Submitted (Primary Sample), so it can pass 100% when replacements completed for primaries that never submitted. Without a primary sample the second column is dropped and Completion = Completed ÷ Submitted. Anything the roster doesn't say (no primary/replacement column, IDs missing from it) is asked, never assumed. Each respondent's result also lands in the **Completion** sheet of `issue_tracking.xlsx`.
+- **Form Version** compares each submission's form version with the version expected for its date. The expected version comes from the date windows in `modules.yaml`; where none are set, it is each day's most-used version (and a version's expected dates are the first to last day it led).
 - **GPS Map** and **Missingness** are descriptive only by default: they show data but don't flag anything.
 - **Field Request** is empty unless you ask for a custom check in the Instructions step.
 
@@ -182,9 +183,9 @@ Details for each are in [`references/check_modules.md`](references/check_modules
 | `references/issue_tracking_schema.md` | Column-by-column reference for `issue_tracking.xlsx` |
 | `references/prompts.md` | The exact phrases that start setup vs. post-feedback |
 | `references/role_map_schema.md` | The field-by-field `role_map.yaml` schema the agent writes during setup |
-| `assets/report_sections.json` | The table layout every report section follows |
-| `assets/summary_message_example.md` | Worked example the agent drafts your daily summary against |
-| `assets/sample_report.html` | Example of the report layout |
+| `assets/report_sections.json` | The table layout every section of the detailed report follows (and which trimmed sections the condensed report keeps) |
+| `assets/summary_message_example.md` | Worked example the agent drafts the detailed report's long summary against |
+| `assets/summary_condensed_example.md` | Worked example the agent drafts the short update (and the chat message) against |
 | `assets/main.R` | Internal — template for `hfc/code/main.R`, a cheat-sheet of every step you could run by hand |
 | `assets/README_template.md`, `assets/README_example.md` | Template the agent fills in to write your own project's README |
 | `assets/check_templates/` | Internal — one script per check; copied into `hfc/code/checks/` on each build (the copies are the ones you can run) |

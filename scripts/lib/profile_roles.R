@@ -248,6 +248,13 @@ default_modules <- function(roles) {
         # rank column, and the roster's own group column. Blank skips it.
         replacement_status_col = NA_character_,
         replacement_primary_values = "primary",
+        # Set true ONLY when the user confirms the roster has no primary/
+        # replacement column (every roster respondent is then primary); never
+        # assumed - the build stops and asks while a roster has neither.
+        roster_all_primary = NA,
+        # How submitted IDs missing from the roster are treated, as chosen by
+        # the user when the build asks: "non_primary" or "exclude".
+        offroster_handling = NA_character_,
         replacement_rank_col = NA_character_,
         replacement_group_col = NA_character_,
         # Maps roster status values beyond Primary/Replacement (Rejected/

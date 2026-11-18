@@ -114,24 +114,171 @@ date_range_label <- function(ds, roles) {
     if (identical(lo, hi)) lo else sprintf("%s to %s", lo, hi)
 }
 
-#' Count + percent-complete, overall or split by a grouping vector.
-completion_summary <- function(complete_flag, group_vec = NULL) {
-    if (is.null(group_vec)) {
-        return(tibble::tibble(
-        group = "Overall", n = length(complete_flag),
-        n_complete = sum(complete_flag, na.rm = TRUE),
-        pct_complete = round(100 * mean(complete_flag, na.rm = TRUE), 1)
-        ))
-    }
-    tibble::tibble(group = as.character(group_vec), complete = complete_flag) %>%
-        dplyr::filter(!is.na(group), nzchar(group)) %>%
+#' The M1 Completion table's fixed structure, overall or split by a grouping
+#' vector: `n` (Submitted), `n_primary` (Submitted, Primary Sample - only when
+#' the primary sample is known, i.e. `primary_flag` is not NULL), `n_complete`
+#' (Completed, primary or replacement) and `pct_complete` (Completion) =
+#' Completed / Submitted (Primary Sample), or Completed / Submitted when no
+#' primary sample is known. It can exceed 100% when replacements completed for
+#' primaries that never submitted. NA when the denominator is 0.
+completion_table <- function(complete_flag, group_vec = NULL, primary_flag = NULL) {
+    has_primary <- !is.null(primary_flag)
+    df <- tibble::tibble(
+        group = if (is.null(group_vec)) rep("Overall", length(complete_flag)) else as.character(group_vec),
+        complete = complete_flag %in% TRUE,
+        primary = if (has_primary) primary_flag %in% TRUE else NA
+    ) %>% dplyr::filter(!is.na(group), nzchar(group))
+    out <- df %>%
         dplyr::group_by(group) %>%
         dplyr::summarise(
         n = dplyr::n(),
-        n_complete = sum(complete, na.rm = TRUE),
-        pct_complete = round(100 * mean(complete, na.rm = TRUE), 1),
+        n_primary = if (has_primary) sum(primary) else NA_integer_,
+        n_complete = sum(complete),
         .groups = "drop"
         )
+    den <- if (has_primary) out$n_primary else out$n
+    out$pct_complete <- ifelse(den > 0, round(100 * out$n_complete / den, 1), NA_real_)
+    if (!has_primary) out$n_primary <- NULL
+    if (is.null(group_vec) && !nrow(out)) {
+        out <- tibble::tibble(group = "Overall", n = 0L, n_complete = 0L, pct_complete = NA_real_)
+    }
+    out
+}
+
+#' Row-level "completed" flag aligned to `ds`. Under the roster signal every
+#' surveyed row counts as completed (the roster-aligned flag in `cf` is
+#' roster-length, not row-length). Shared by M1's tables and the Completion
+#' sheet.
+row_complete_vec <- function(ds, cf) {
+    if (identical(cf$sig, "roster") || length(cf$complete_flag) != nrow(ds)) {
+        rep(TRUE, nrow(ds))
+    } else cf$complete_flag %in% TRUE
+}
+
+#' The roster's primary/replacement status column, when one is configured
+#' and exists in the roster: `modules$M1$replacement_status_col`.
+roster_status_col <- function(modules, target_ds) {
+    sc <- modules$M1$replacement_status_col %||% NA_character_
+    if (!is.null(target_ds) && !is.na(sc) && nzchar(sc) && sc %in% names(target_ds)) sc else NA_character_
+}
+
+#' Roster respondents flagged primary, aligned to the roster rows, or NULL
+#' when the roster says nothing about it: no usable status column and the
+#' user has not confirmed `modules$M1$roster_all_primary` (never assumed).
+roster_primary_vec <- function(modules, target_ds) {
+    sc <- roster_status_col(modules, target_ds)
+    if (!is.na(sc)) {
+        primary_values <- tolower(trimws(as.character(modules$M1$replacement_primary_values %||% "primary")))
+        return(tolower(trimws(as.character(target_ds[[sc]]))) %in% primary_values)
+    }
+    if (isTRUE(modules$M1$roster_all_primary)) return(rep(TRUE, nrow(target_ds)))
+    NULL
+}
+
+#' Submitted respondent IDs that are not on the roster at all. Returns
+#' list(rows = logical mask aligned to `ds`, ids = distinct IDs), or NULL when
+#' there is no usable roster.
+offroster_ids <- function(ds, roles, target_ds = NULL) {
+    entity_col <- roles$entity_id[[1]] %||% NA_character_
+    if (is.null(target_ds) || !nrow(target_ds) || is.na(entity_col) || !entity_col %in% names(ds)) return(NULL)
+    key_col <- roles$completion_roster_key_col %||% entity_col
+    if (!key_col %in% names(target_ds)) return(NULL)
+    id <- as.character(ds[[entity_col]])
+    on_roster <- id %in% as.character(target_ds[[key_col]])
+    rows <- !on_roster & !is.na(id) & nzchar(id)
+    list(rows = rows, ids = unique(id[rows]))
+}
+
+#' Is each surveyed row's respondent in the PRIMARY sample? Logical vector
+#' aligned to `ds`, or NULL when no primary sample is known. With a roster:
+#' the respondent ID is looked up in the roster and counts as primary when
+#' the roster's status column holds one of `replacement_primary_values`
+#' (see roster_primary_vec(): never assumed when the roster has no such
+#' column). Rows not on the roster are not primary (how they enter the
+#' tables is `modules$M1$offroster_handling`, applied by the callers).
+#' Without a roster, a primary_secondary column in the survey data supplies it.
+primary_flag_vec <- function(ds, roles, modules, target_ds = NULL) {
+    entity_col <- roles$entity_id[[1]] %||% NA_character_
+    if (!is.null(target_ds) && nrow(target_ds) > 0 && !is.na(entity_col) && entity_col %in% names(ds)) {
+        key_col <- roles$completion_roster_key_col %||% entity_col
+        if (key_col %in% names(target_ds)) {
+        rp <- roster_primary_vec(modules, target_ds)
+        if (is.null(rp)) return(NULL)
+        roster_key <- as.character(target_ds[[key_col]])
+        primary_keys <- unique(roster_key[rp & !is.na(roster_key) & nzchar(roster_key)])
+        return(as.character(ds[[entity_col]]) %in% primary_keys)
+        }
+    }
+    ps_col <- roles$completion_primary_secondary_col %||% NA_character_
+    primary_value <- roles$completion_primary_value %||% NA_character_
+    if (identical(roles$completion_primary_signal, "primary_secondary") &&
+        !is.na(ps_col) && ps_col %in% names(ds) && !is.na(primary_value)) {
+        return(tolower(trimws(as.character(ds[[ps_col]]))) == tolower(primary_value))
+    }
+    NULL
+}
+
+#' Rows that M1's tables and the build log keep: everything, unless the user
+#' chose `offroster_handling: exclude`, in which case off-roster rows go.
+m1_scope_rows <- function(ds, roles, modules, target_ds = NULL) {
+    keep <- rep(TRUE, nrow(ds))
+    if (identical(modules$M1$offroster_handling, "exclude")) {
+        off <- offroster_ids(ds, roles, target_ds)
+        if (!is.null(off)) keep <- !off$rows
+    }
+    keep
+}
+
+#' Makes sure `ds` carries the helper columns the completion signals read
+#' (`.hfc_completed` for the "status" signal), so callers handed the raw
+#' dataset (the Completion sheet, the build log) see the same flags M1 does.
+ensure_prepared_ds <- function(ds, roles, modules, target_ds = NULL) {
+    if (!".hfc_completed" %in% names(ds)) ds <- prepare_ds_for_checks(ds, roles, NULL, target_ds, modules)
+    attr(ds, "hfc_target_ds") <- target_ds
+    ds
+}
+
+#' Cumulative primary-sample figures for the summary messages: the planned
+#' primary target (roster only), primary samples attempted (submitted),
+#' primary completed and replacements completed - the same flags as M1's
+#' tables, so the messages quote the tables' numbers. NULL when no primary
+#' sample is known.
+primary_sample_summary <- function(ds, roles, modules, target_ds = NULL) {
+    ds <- ensure_prepared_ds(ds, roles, modules, target_ds)
+    pf <- primary_flag_vec(ds, roles, modules, target_ds)
+    if (is.null(pf)) return(NULL)
+    cf <- compute_completion_flag(ds, roles, modules)
+    rc <- row_complete_vec(ds, cf)
+    keep <- m1_scope_rows(ds, roles, modules, target_ds)
+    pf <- pf[keep]; rc <- rc[keep]
+    target <- NA_integer_
+    entity_col <- roles$entity_id[[1]] %||% NA_character_
+    if (!is.null(target_ds) && nrow(target_ds) > 0) {
+        key_col <- roles$completion_roster_key_col %||% entity_col
+        rp <- roster_primary_vec(modules, target_ds)
+        if (key_col %in% names(target_ds) && !is.null(rp)) {
+        keys <- as.character(target_ds[[key_col]])
+        target <- length(unique(keys[rp & !is.na(keys) & nzchar(keys)]))
+        }
+    }
+    list(target = target, attempted = sum(pf), primary_completed = sum(pf & rc),
+        replacements_completed = sum(!pf & rc), completed = sum(rc))
+}
+
+#' One-line build-log note on off-roster respondents (NA when none / no roster).
+format_offroster_summary <- function(ds, roles, modules, target_ds = NULL) {
+    off <- offroster_ids(ds, roles, target_ds)
+    if (is.null(off) || !length(off$ids)) return(NA_character_)
+    sprintf("Off-roster respondents: %d submitted ID(s) not on the roster (handling: %s)",
+            length(off$ids), modules$M1$offroster_handling %||% "unset")
+}
+
+#' One-line version of primary_sample_summary() for the build log.
+format_primary_sample_summary <- function(x) {
+    if (is.null(x)) return(NA_character_)
+    sprintf("Primary sample: target %s; primary samples attempted (submitted) %d; primary completed %d; non-primary (replacement) completed %d; total completed %d",
+            if (is.na(x$target)) "unknown" else as.character(x$target),
+            x$attempted, x$primary_completed, x$replacements_completed, x$completed)
 }
 
 #' The row-level "is this row surveyed/complete" flag used to filter every
@@ -434,16 +581,14 @@ build_completion_table <- function(ds, roles, modules, target_ds = NULL, existin
     new_cols <- c("submitted", "completed", "reason_no_completion")
     survey_key <- as.character(ds[[entity_col]])
 
-    attr(ds, "hfc_target_ds") <- target_ds
+    ds <- ensure_prepared_ds(ds, roles, modules, target_ds)
     cf <- compute_completion_flag(ds, roles, modules)
     sig <- cf$sig
     row_reason <- compute_noncompletion_reason_vec(ds, modules, cf)
 
     # Row-level "complete" aligned to ds. Under "roster" the flag is aligned
     # to target_ds instead, and every surveyed row counts as complete.
-    row_complete <- if (identical(sig, "roster") || length(cf$complete_flag) != nrow(ds)) {
-        rep(TRUE, nrow(ds))
-    } else cf$complete_flag %in% TRUE
+    row_complete <- row_complete_vec(ds, cf)
 
     use_roster <- !is.null(target_ds) && nrow(target_ds) > 0 &&
         (roles$completion_roster_key_col %||% entity_col) %in% names(target_ds)
@@ -502,70 +647,59 @@ check_m1 <- function(ds, roles, modules) {
     complete_flag <- cf$complete_flag
     gate_cols <- cf$gate_cols; gate_pass <- cf$gate_pass; gate_pass_fn <- cf$gate_pass_fn
 
-    # Computed early since BY GROUP below folds in its Target N/Primary
-    # Completed/Progress columns.
+    # Every Completion table is built from the SURVEY rows with one fixed
+    # structure (Submitted, Submitted (Primary Sample), Completed,
+    # Completion) in every signal mode - see completion_table().
     repl <- compute_replacement_roster_summary(ds, roles, modules, target_ds, sig, complete_flag)
-    repl_group_col <- modules$M1$replacement_group_col %||% NA_character_
+    row_complete <- row_complete_vec(ds, cf)
+    primary_flag <- primary_flag_vec(ds, roles, modules, target_ds)
+    # offroster_handling = "exclude": submissions whose ID isn't on the roster
+    # stay out of every Completion table.
+    scope <- m1_scope_rows(ds, roles, modules, target_ds)
+    dsT <- ds[scope, , drop = FALSE]   # table rows (ds itself stays aligned to complete_flag below)
+    row_complete <- row_complete[scope]
+    if (!is.null(primary_flag)) primary_flag <- primary_flag[scope]
 
-    stats_overall <- completion_summary(complete_flag) %>%
-        dplyr::transmute(dates = date_range_label(ds, roles), n = n, n_complete = n_complete, pct_complete = pct_complete)
-    # Blank rather than fabricated when no roster exists.
-    stats_overall$primary_sample_completed <- if (!is.null(repl) && nrow(repl$by_group_repl)) {
-        sum(repl$by_group_repl$n_primary_completed)
-    } else NA_integer_
+    stats_overall <- completion_table(row_complete, primary_flag = primary_flag) %>%
+        dplyr::mutate(dates = date_range_label(dsT, roles)) %>%
+        dplyr::select(dates, dplyr::everything(), -group)
 
     group_vars <- modules$M1$group_vars %||% character()
-    # Under "roster" mode, the roster's own strata column can carry a
-    # different name than ds's - roles$completion_roster_group_map bridges
-    # that mismatch.
+    # A strata column the survey data doesn't have may still exist in the
+    # roster (under a possibly different name, bridged by
+    # roles$completion_roster_group_map): look it up through the respondent ID.
     roster_group_map <- roles$completion_roster_group_map %||% list()
-    resolve_group_var <- function(gv) {
-        if (gv %in% names(group_source_ds)) return(gv)
-        if (!identical(sig, "roster")) return(NA_character_)
-        mapped <- roster_group_map[[gv]] %||% NA_character_
-        if (!is.na(mapped) && mapped %in% names(group_source_ds)) mapped else NA_character_
+    entity_col <- roles$entity_id[[1]] %||% NA_character_
+    roster_key_col <- roles$completion_roster_key_col %||% entity_col
+    group_values <- function(gv) {
+        if (gv %in% names(dsT)) return(as.character(dsT[[gv]]))
+        mapped <- roster_group_map[[gv]] %||% gv
+        if (!is.null(target_ds) && mapped %in% names(target_ds) && roster_key_col %in% names(target_ds) &&
+            !is.na(entity_col) && entity_col %in% names(dsT)) {
+        return(as.character(target_ds[[mapped]])[match(as.character(dsT[[entity_col]]), as.character(target_ds[[roster_key_col]]))])
+        }
+        NULL
     }
     by_group <- lapply(group_vars, function(gv) {
-        gv_resolved <- resolve_group_var(gv)
-        if (is.na(gv_resolved)) return(NULL)
-        tbl <- completion_summary(complete_flag, group_source_ds[[gv_resolved]]) %>%
-        mutate(group_var = gv, .before = 1) %>%
-        rename(value = group) %>%
-        select(-pct_complete)
-        # Target N / Primary Completed / Progress: only meaningful for the
-        # ONE group_var matching the roster's replacement_group_col - every
-        # other grouping stays genuinely blank rather than guessed.
-        if (!is.null(repl) && nrow(repl$by_group_repl) && !is.na(repl_group_col) && identical(gv, repl_group_col)) {
-        joined <- repl$by_group_repl[match(tbl$value, repl$by_group_repl$group), ]
-        tbl$primary_completed <- joined$n_primary_completed
-        tbl$target_n <- joined$n_primary
-        # Progress = ALL completed in this group / Target N, not just
-        # Primary Completed - can read under 100% even with every
-        # submission complete, if replacements haven't filled every slot.
-        tbl$progress <- ifelse(
-            !is.na(joined$n_primary) & joined$n_primary > 0,
-            round(100 * tbl$n_complete / joined$n_primary, 1), NA_real_
-        )
-        } else {
-        tbl$primary_completed <- NA_integer_
-        tbl$target_n <- NA_integer_
-        tbl$progress <- NA_real_
-        }
-        tbl
+        gvals <- group_values(gv)
+        if (is.null(gvals)) return(NULL)
+        completion_table(row_complete, gvals, primary_flag) %>%
+        dplyr::mutate(group_var = gv, .before = 1) %>%
+        dplyr::rename(value = group)
     })
     by_group <- by_group[!vapply(by_group, is.null, logical(1))]
     by_group_df <- if (length(by_group)) bind_rows(by_group) else tibble()
-    by_enum_df <- if (isTRUE(modules$M1$by_enum %||% TRUE) && !is.na(roles$enum) && roles$enum %in% names(group_source_ds)) {
+    by_enum_df <- if (isTRUE(modules$M1$by_enum %||% TRUE) && !is.na(roles$enum) && roles$enum %in% names(dsT)) {
         enum_disp <- resolve_display_vec(
-        group_source_ds[[roles$enum]],
-        resolve_unit_name(group_source_ds, roles$enum, roles$enum_name),
+        dsT[[roles$enum]],
+        resolve_unit_name(dsT, roles$enum, roles$enum_name),
         roles$enumerator_display %||% "name"
         )
-        completion_summary(complete_flag, enum_disp) %>% rename(enumerator = group) %>% arrange(desc(pct_complete))
+        completion_table(row_complete, enum_disp, primary_flag) %>% rename(enumerator = group) %>% arrange(desc(pct_complete))
     } else tibble()
-    by_date_df <- if (isTRUE(modules$M1$by_date %||% TRUE) && !is.na(roles$start) && roles$start %in% names(group_source_ds)) {
-        d <- suppressWarnings(as.Date(as.character(group_source_ds[[roles$start]])))
-        completion_summary(complete_flag, as.character(d)) %>% rename(date = group) %>% arrange(desc(date))
+    by_date_df <- if (isTRUE(modules$M1$by_date %||% TRUE) && !is.na(roles$start) && roles$start %in% names(dsT)) {
+        d <- suppressWarnings(as.Date(as.character(dsT[[roles$start]])))
+        completion_table(row_complete, as.character(d), primary_flag) %>% rename(date = group) %>% arrange(desc(date))
     } else tibble()
     stats <- list(overall = stats_overall, by_group = by_group_df,
                     by_enumerator = by_enum_df, by_date = by_date_df)
@@ -761,6 +895,32 @@ expected_dates_for_version <- function(v, version_map) {
     NA_character_
 }
 
+#' The version most used on each submission date (rows with a blank version
+#' or unparseable date ignored). Ties go to the version first seen later (the
+#' newer form), then the alphabetically later label, so output is deterministic.
+derive_modal_version_by_date <- function(vc, d) {
+    df <- tibble(version = vc, date = d) %>%
+        filter(!is.na(version), nzchar(version), !is.na(date))
+    if (!nrow(df)) return(tibble(date = as.Date(character()), version = character()))
+    first_seen <- df %>% group_by(version) %>% summarise(first = min(date), .groups = "drop")
+    df %>%
+        count(date, version, name = "n") %>%
+        left_join(first_seen, by = "version") %>%
+        arrange(date, desc(n), desc(first), desc(version)) %>%
+        group_by(date) %>% slice(1) %>% ungroup() %>%
+        select(date, version)
+}
+
+#' Expected dates per version derived from the daily-mode table: first to last
+#' day the version was the most used ("lo to hi", or the single date). A
+#' version that never led gets no entry.
+derived_expected_dates <- function(modal_tbl) {
+    if (is.null(modal_tbl) || !nrow(modal_tbl)) return(character())
+    g <- modal_tbl %>% group_by(version) %>%
+        summarise(lo = as.character(min(date)), hi = as.character(max(date)), .groups = "drop")
+    stats::setNames(ifelse(g$lo == g$hi, g$lo, paste(g$lo, "to", g$hi)), g$version)
+}
+
 # ---- M3 Form Version --------------------------------------------------------
 check_m3 <- function(ds, roles, modules) {
     findings <- empty_findings()
@@ -777,8 +937,14 @@ check_m3 <- function(ds, roles, modules) {
             group_by(version) %>%
             summarise(n = n(), date_min = as.character(min(date, na.rm = TRUE)),
                     date_max = as.character(max(date, na.rm = TRUE)), .groups = "drop")
-        by_version$expected_dates <- vapply(by_version$version, expected_dates_for_version,
-                                            character(1), version_map = version_map)
+        by_version$expected_dates <- unname(vapply(by_version$version, expected_dates_for_version,
+                                                   character(1), version_map = version_map))
+        # No confirmed window for a version: fall back to the days it was the
+        # most used version.
+        modal_tbl <- derive_modal_version_by_date(vc, d)
+        derived <- derived_expected_dates(modal_tbl)
+        fill <- is.na(by_version$expected_dates)
+        by_version$expected_dates[fill] <- unname(derived[by_version$version[fill]])
         stats <- by_version
         }
         if (length(version_map) && !is.na(dcol) && dcol %in% names(ds)) {
@@ -789,6 +955,23 @@ check_m3 <- function(ds, roles, modules) {
             idx <- which(!is.na(d) & d >= d_start & d <= d_end)
             expected[idx] <- vspec$version_label
         }
+        mismatch <- !is.na(expected) & !is.na(vc) & nzchar(vc) & vc != expected
+        if (any(mismatch)) {
+            tmp <- ds[mismatch, , drop = FALSE]
+            tmp$.v <- sprintf("recorded=%s expected=%s", vc[mismatch], expected[mismatch])
+            findings <- mk_findings(
+            tmp, "form_version_mismatch", "M3", "form_version_mismatch",
+            "Recorded form version doesn't match the expected version for this date", roles, ".v",
+            variable_name = version_col
+            )
+        }
+        }
+        if (!length(version_map) && !is.na(dcol) && dcol %in% names(ds)) {
+        # No configured windows: each date's expected version is that date's
+        # most used one (per-day lookup, since derived ranges can overlap).
+        d <- suppressWarnings(as.Date(as.character(ds[[dcol]])))
+        modal_tbl <- derive_modal_version_by_date(vc, d)
+        expected <- modal_tbl$version[match(d, modal_tbl$date)]
         mismatch <- !is.na(expected) & !is.na(vc) & nzchar(vc) & vc != expected
         if (any(mismatch)) {
             tmp <- ds[mismatch, , drop = FALSE]

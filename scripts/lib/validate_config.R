@@ -15,8 +15,10 @@ REQUIRED_ROLE_FIELDS <- c(
 )
 
 #' Checks the config for problems. Column-existence checks only run when
-#' `ds` is given.
-validate_modules_config <- function(modules, roles, ds = NULL) {
+#' `ds` is given; the roster questions below only when `target_ds` (the loaded
+#' roster) is given too. Errors starting "NEEDS_USER_INPUT:" are questions the
+#' agent must put to the user (never answer them itself) before rebuilding.
+validate_modules_config <- function(modules, roles, ds = NULL, target_ds = NULL) {
     errors <- character(); warnings <- character()
     has_ds <- !is.null(ds)
     col_exists <- function(col) !is.na(col) && nzchar(col) && (!has_ds || col %in% names(ds))
@@ -85,6 +87,33 @@ validate_modules_config <- function(modules, roles, ds = NULL) {
     }
     if (identical(m1$completion_signal, "roster") && (is.null(roles$completion_roster_candidate) || is.na(roles$completion_roster_candidate$path %||% NA_character_))) {
         errors <- c(errors, "M1.completion_signal is 'roster' but no roster/target file is configured (roles$completion_roster_candidate).")
+    }
+
+    # A loaded roster must say which respondents are primary, or the user must
+    # confirm there is no such column - never assumed.
+    if (!is.null(target_ds) && nrow(target_ds) > 0) {
+        sc <- m1$replacement_status_col %||% NA_character_
+        has_status <- !is.na(sc) && nzchar(sc) && sc %in% names(target_ds)
+        if (!has_status && !isTRUE(m1$roster_all_primary)) {
+        errors <- c(errors, sprintf(
+            paste0("NEEDS_USER_INPUT: the roster has no configured primary/replacement column (M1.replacement_status_col is %s). ",
+                "Ask the user which roster column marks primary vs replacement (and which values mean primary), or whether the roster has none ",
+                "(then every roster respondent is primary: set M1.roster_all_primary: true). Roster columns: %s."),
+            if (is.na(sc) || !nzchar(sc)) "blank" else sprintf("'%s', not a roster column", sc),
+            paste(names(target_ds), collapse = ", ")
+        ))
+        }
+        # Submitted IDs missing from the roster: the user decides how to treat them.
+        off <- if (has_ds && exists("offroster_ids", mode = "function")) offroster_ids(ds, roles, target_ds) else NULL
+        handling <- m1$offroster_handling %||% NA_character_
+        if (!is.null(off) && length(off$ids) && !(handling %in% c("non_primary", "exclude"))) {
+        errors <- c(errors, sprintf(
+            paste0("NEEDS_USER_INPUT: %d submitted respondent ID(s) are not on the roster (e.g. %s). Ask the user: is the roster the wrong file or its ID column wrong ",
+                "(fix roster_file_path / completion_roster_key_col and rebuild), should they count as non-primary extras ",
+                "(M1.offroster_handling: non_primary), or be excluded from the completion tables (M1.offroster_handling: exclude)?"),
+            length(off$ids), paste(utils::head(off$ids, 5), collapse = ", ")
+        ))
+        }
     }
 
     m6 <- modules$M6 %||% list()

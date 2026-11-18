@@ -1,6 +1,7 @@
-# Refreshes the HTML report after a "Process HFC feedback" pass — re-runs
+# Refreshes the HTML reports (condensed <MMDD>_HFCs.html and detailed/<MMDD>_HFCs_detailed.html) after a "Process HFC feedback" pass — re-runs
 # every check against the latest (fixed) data, using the already-confirmed
-# config, and drops any finding already marked Resolved.
+# config, drops any finding already marked Resolved from what the reports
+# show, and refreshes the live file's Completion sheet (that sheet only).
 #
 # Usage: Rscript rebuild_report.R [--open]
 
@@ -84,7 +85,7 @@ if (!is.null(roles$completion_roster_candidate) && !is.na(roles$completion_roste
     target_ds <- tryCatch(load_microdata(roles$completion_roster_candidate$path), error = function(e) NULL)
 }
 
-format_config_validation(validate_modules_config(modules, roles, ds = ds), stop_on_error = TRUE)
+format_config_validation(validate_modules_config(modules, roles, ds = ds, target_ds = target_ds), stop_on_error = TRUE)
 
 res <- run_checks_and_write_issues(cfg$code_output_dir, ds, roles, modules, skill, target_ds = target_ds)
 
@@ -95,6 +96,11 @@ if (is.null(ctx$tbl)) {
 
 fb_fresh <- findings_to_issue_tracking(res$findings, roles = roles)
 write_tracking_snapshot(ctx, fb_fresh, entity_label = entity_label, group_label = group_label)
+
+ps_line <- tryCatch(format_primary_sample_summary(primary_sample_summary(ds, roles, modules, target_ds)), error = function(e) NA_character_)
+if (!is.na(ps_line)) message(ps_line)
+off_line <- tryCatch(format_offroster_summary(ds, roles, modules, target_ds), error = function(e) NA_character_)
+if (!is.na(off_line)) message(off_line)
 
 # Refresh ONLY the derived Completion sheet in the live file against the
 # latest (fixed) data - the Tracking sheet is never touched here.
