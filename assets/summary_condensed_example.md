@@ -8,7 +8,7 @@ Like the long narrative, this message reports on the **most recent day of data c
 
 ---
 
-> Hi @team, HFC update for the AI Extension pilot (Mubende), synced through Aug 17. 23 submissions on Aug 17 from 23 distinct farmers, 21 completed. Cumulative: 200 completed (170 primary, 30 replacements) against a primary-sample target of 329; 190 primary samples attempted (submitted), 105.3% completion.
+> Hi @team, HFC update for the Uganda AI Extension Services pilot (Mubende), synced through Aug 17. There were 22 submissions on Aug 17 from 22 distinct farmers, 20 completed. Cumulative: 200 surveys completed (136 primary, 64 replacements) against a 329 primary-sample farmers scheduled. 190 primary samples attempted (submitted), that is 105.3% completion so far!
 >
 > The 2 non-completions on Aug 17, both Joan Namakula: 1 failed "Manages a coffee farm," 1 failed "Has a functioning smartphone."
 >
@@ -24,7 +24,7 @@ Like the long narrative, this message reports on the **most recent day of data c
 > 2. 3 interviews by Wandera Benard started after 8pm.
 > 3. Form version mismatch on 2 submissions from Bridget Baseke (still on version 3).
 
-[Paragraph 1, the opening: greeting, project name, sync date, that day's submissions (and distinct respondents) and completions, then the cumulative completion measured against the primary sample whenever one is known: completed (split primary / replacements), the primary-sample target, the primary samples attempted (submitted) and the resulting completion %, all from the build log's `Primary sample:` line (and M1's tables). Completion = completed ÷ primary samples attempted, so it can exceed 100% when replacements completed for primaries that never submitted. With no primary sample, say `N completed of M submitted (X%)`. Same facts as the long narrative's lead, in two or three sentences.]
+[Paragraph 1, the opening, always four plain sentences: (1) greeting, project name and sync date; (2) `There were N submissions on <Mon DD> from N distinct <entities>, M completed.`; (3) `Cumulative: X surveys completed (P primary, R replacements) against T primary-sample <entities> scheduled.`; (4) `A primary samples attempted (submitted), that is Z% completion so far!`. Numbers from the build log's `Primary sample:` line and M1's tables. Completion = completed ÷ primary samples attempted, so it can exceed 100% when replacements completed for primaries that never submitted. Variants: no replacements completed -> drop the parenthetical; primary known but no planned target -> drop "against ... scheduled"; no primary sample -> `Cumulative: X surveys completed out of M submitted, that is Z% completion so far!`. Read it aloud: it must sound like a person, not a table.]
 
 [Paragraph 2: that day's non-completions only: count, who, and the specific reason each failed (the `gate_fail_reasons` text, M1's `stats$by_reason`). Omit the whole paragraph when nothing failed that day.]
 

@@ -882,7 +882,7 @@ format_summary_date <- function(x) {
 # ("today"), a numeric date, or doesn't name the last data-collection day;
 # also checks the condensed message's "Issues to highlight:" list (see
 # lint_condensed_issues()).
-lint_summary_messages <- function(code_output_dir, last_date, findings = NULL) {
+lint_summary_messages <- function(code_output_dir, last_date, findings = NULL, primary_known = FALSE) {
     want <- format_summary_date(last_date)
     for (f in c("summary_message.md", "summary_condensed.md")) {
         path <- hfc_path(code_output_dir, "config", f)
@@ -893,6 +893,10 @@ lint_summary_messages <- function(code_output_dir, last_date, findings = NULL) {
         }
         if (grepl("\\b\\d{1,2}/\\d{1,2}\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b", txt)) {
             message("WARNING: ", f, " uses a numeric date. Use the 'Mon DD' form (e.g. ", want %||% "Aug 17", ").")
+        }
+        if (isTRUE(primary_known) && !(grepl("primary samples attempted (submitted)", txt, fixed = TRUE) &&
+                                       grepl("completion so far", txt, fixed = TRUE))) {
+            message("WARNING: ", f, " doesn't state cumulative completion in the four-sentence pattern. A primary sample is known, so include '<A> primary samples attempted (submitted), that is <Z>% completion so far!' (see assets/summary_condensed_example.md).")
         }
         if (!is.na(want) && !grepl(want, txt, fixed = TRUE)) {
             message("WARNING: ", f, " never names the last day of data collection (", want, ").")
@@ -1450,7 +1454,8 @@ footer.note{margin-top:1.5rem;color:var(--muted);font-size:.9rem}
   )
   # The full report lives in detailed/; the parent file is the condensed
   # report - just the agent-drafted condensed message.
-  lint_summary_messages(code_output_dir, roles$last_date %||% NA_character_, findings)
+  lint_summary_messages(code_output_dir, roles$last_date %||% NA_character_, findings,
+                        primary_known = "n_primary" %in% names(stats$M1$overall %||% list()))
   detailed_path <- detailed_report_path(html_path)
   dir.create(dirname(detailed_path), showWarnings = FALSE, recursive = TRUE)
   writeLines(html, detailed_path)
