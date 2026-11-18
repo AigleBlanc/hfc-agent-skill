@@ -15,7 +15,7 @@
 | F12 | Enabling an M9 custom check without a user-described need and a registered `hfc/code/checks/<name>.R` |
 | F13 | Age/outlier copy that assumes child surveys when roles are generic adults/HH |
 | F14 | Calling deleted eval harness paths (`eval/`, `verify_all`, `run_demo`, SimUser as required) |
-| F15 | Project README missing or invented access dates / exhibit IDs not in the package |
+| F15 | Generating a project `README.md` (or any file outside `hfc/` and the HFC Output Directory) in the Code Output Directory — the skill no longer writes one |
 | F16 | Treating media **filename** columns (e.g. `audio_audit` `.m4a`) as M14 flags instead of M13 |
 | F17 | Running per-row media file-hygiene checks (missing/tiny/duration/duplicate/extension) — M13 only ever flags a media-indicating column that's completely empty across every surveyed row; never re-add on-disk file checks |
 | F18 | Enabling M13 without correctly identifying the media-indicating columns (audio/image filename columns, plus any qualitative open-text columns) — decided silently by default; a wrong identification must still be visibly correctable via "Walk me through all modules" (Media, Map & Grouping window's Media columns tab) |

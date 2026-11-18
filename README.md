@@ -107,7 +107,7 @@ The agent only stops to ask you a handful of things (at most five during "Run HF
 4. **Instructions.** You can tell it anything it should know up front: checks to switch off, the country, specific checks you want (e.g. "flag interviews under 10 minutes"). It also writes a blank `hfc/config/modules.yaml` you can pre-fill yourself. Requests that match a standard check adjust that check; anything else becomes a custom Field Request (M9) check.
 5. **Completion signal (only when one is found).** The agent shows how it will tell which planned surveys were completed (a screening/eligibility question, a target roster, or a primary/secondary column) and the reason labels it will use. If your roster has no column that separates primary from replacement respondents, or some submitted IDs are not on the roster, the agent asks you what to do rather than assuming. Once confirmed, the other checks run only on completed surveys.
 6. **Everything else is decided for you.** Respondent ID, enumerator, country and timezone, timing and GPS columns, important variables, thresholds and labels are chosen by the agent and saved to `hfc/config/role_map.yaml` and `modules.yaml`, with no questions. You can review any of it at the end.
-7. **Build.** It runs the checks (M1–M14), writes two HTML reports and drafts your project README. The short one summarizes the **last day** of data collection (named by its date, e.g. "Aug 17", never "today") and is also posted in chat, ready to share; the detailed one lists every finding. Both are titled `HFC MM/DD` (the day they were generated).
+7. **Build.** It runs the checks (M1–M14), writes two HTML reports. The short one summarizes the **last day** of data collection (named by its date, e.g. "Aug 17", never "today") and is also posted in chat, ready to share; the detailed one lists every finding. Both are titled `HFC MM/DD` (the day they were generated).
 8. **Review & Approve.** Your browser opens `hfc/structure.html` (first setup only) and then the short report `hfc/outputs/<MMDD>_HFCs.html` (the detailed report stays in `detailed/`). You then choose one of three paths:
    - **All good!** The findings are committed to the live shared `issue_tracking.xlsx`.
    - **Walk me through all modules.** The agent replays each setting as a quick confirm-or-correct pass, then rebuilds.
@@ -149,7 +149,6 @@ You don't have to set `Accepted` before the agent will act — it picks up any `
 | Product map (first setup) | `<Code Output Directory>/hfc/structure.html` |
 | Saved settings you can hand-edit | `<Code Output Directory>/hfc/config/role_map.yaml` and `modules.yaml` |
 | Runnable check scripts | `<Code Output Directory>/hfc/code/checks/` (`main.R` runs them all) |
-| Your project README | `<Code Output Directory>/README.md` |
 | Shared tracking file | `issue_tracking.xlsx` — in your configured **HFC Output Directory** (required, no local copy). Two sheets: **Tracking** (flagged issues) and **Completion** (one row per respondent in your sample, with `submitted`, `completed` and `reason_no_completion`) |
 | Dated snapshots | `<HFC Output Directory>/intermediate/` (one per setup run) and `resolutions/` (working clone for feedback passes) |
 | Fixed data (raw is never touched) | `<HFC Output Directory>/Updated Data/<stem>.<ext>` |
@@ -188,7 +187,6 @@ Details for each are in [`references/check_modules.md`](references/check_modules
 | `assets/summary_message_example.md` | Worked example the agent drafts the detailed report's long summary against |
 | `assets/summary_condensed_example.md` | Worked example the agent drafts the short update (and the chat message) against |
 | `assets/main.R` | Internal — template for `hfc/code/main.R`, a cheat-sheet of every step you could run by hand |
-| `assets/README_template.md`, `assets/README_example.md` | Template the agent fills in to write your own project's README |
 | `assets/check_templates/` | Internal — one script per check; copied into `hfc/code/checks/` on each build (the copies are the ones you can run) |
 | `scripts/`, `scripts/lib/` | Internal — the R engine behind every check; you never run these by hand |
 | `tests/` | Internal dev test suite; gitignored, not part of the shipped skill |

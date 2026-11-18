@@ -24,7 +24,6 @@ Use after Pipeline A (setup) and again after Pipeline B (post-feedback).
 | Live `issue_tracking.xlsx` in OneDrive: **Tracking** sheet with `Status`, plus a **Completion** sheet (roster copy or surveyed IDs + `submitted`, `completed`, `reason_no_completion`) | yes (Status defaults to Open; the one shared file — agent, RA, and field team all edit it; no local copy) |
 | `hfc/outputs/<MMDD>_HFCs.html` (titled `HFC MM/DD`, same on the detailed report; condensed: the daily message from `hfc/config/summary_condensed.md` plus the Completion, Duplicates and Form Version tables) | yes |
 | `hfc/outputs/detailed/<MMDD>_HFCs_detailed.html` (also copied to the HFC Output Directory's `detailed/`) | yes (the full report: navigable, searchable tables) |
-| Project `README.md` drafted from `assets/README_template.md` | yes (drafted automatically, no confirmation) |
 
 ## OneDrive (required)
 

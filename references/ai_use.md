@@ -11,7 +11,7 @@ This skill helps build HFC checks and apply field feedback. Treat survey microda
 
 - Prefer column names, types, and aggregate counts when discussing data with an agent.
 - Use institutional / approved environments when the full microdata must be in context.
-- Document AI assistance in the **project** README when AI-generated text or classifications appear in a deliverable (see World Bank reproducibility AI guidance). Coding help that only produced scripts you ran does not require a full AI log, but a one-line disclosure is encouraged.
+- Document AI assistance in your project's own documentation when AI-generated text or classifications appear in a deliverable (see World Bank reproducibility AI guidance). Coding help that only produced scripts you ran does not require a full AI log, but a one-line disclosure is encouraged.
 
 ## Skill-specific
 
